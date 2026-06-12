@@ -20,6 +20,11 @@ struct WorkspaceView: View {
     @State private var plannedSessionDurationText: String = "20 min"
     @State private var plannedSessionProjectId: UUID? = nil
     
+    // Project creation state
+    @State private var showAddProjectSheet: Bool = false
+    @State private var newProjectName: String = ""
+    @State private var newProjectColorHex: String = Project.defaultColors.first ?? "#4A90E2"
+    
     enum WorkspaceTab {
         case dashboard
         case search
@@ -104,7 +109,7 @@ struct WorkspaceView: View {
                     searchTab
                 case .projects:
                     if let project = selectedProject {
-                        ProjectDetailView(project: project) {
+                        ProjectDetailView(project: project, manager: manager) {
                             selectedProject = nil
                         }
                     } else {
@@ -120,6 +125,9 @@ struct WorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showAddPlannedSessionSheet) {
             addPlannedSessionSheet
+        }
+        .sheet(isPresented: $showAddProjectSheet) {
+            addProjectSheet
         }
     }
     
@@ -319,6 +327,14 @@ struct WorkspaceView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
+                    
+                    Button(action: { showAddProjectSheet = true }) {
+                        HStack {
+                            Image(systemName: "plus")
+                            Text("New Project")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
                 
                 // Project Cards Grid
@@ -328,9 +344,14 @@ struct WorkspaceView: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280))], spacing: 16) {
                         ForEach(manager.projects) { project in
-                            ProjectCard(project: project, manager: manager) {
+                            ProjectCard(project: project, manager: manager, onSelect: {
                                 selectedProject = project
-                            }
+                            }, onPlanSession: {
+                                plannedSessionProjectId = project.id
+                                plannedSessionTitle = ""
+                                plannedSessionDurationText = "20 min"
+                                showAddPlannedSessionSheet = true
+                            })
                         }
                     }
                 }
@@ -531,15 +552,11 @@ struct WorkspaceView: View {
                     let parsed = manager.parseDuration(plannedSessionDurationText)
                     let duration = parsed?.duration ?? 1800 // 30m default
                     
-                    let plannedSession = Session(
+                    manager.planSession(
                         title: plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle,
                         duration: duration,
-                        date: Date(),
-                        notes: "",
-                        projectRef: plannedSessionProjectId,
-                        status: .planned
+                        projectId: plannedSessionProjectId
                     )
-                    manager.sessions.insert(plannedSession, at: 0)
                     showAddPlannedSessionSheet = false
                     plannedSessionTitle = ""
                 }
@@ -549,6 +566,88 @@ struct WorkspaceView: View {
         }
         .padding(20)
         .frame(width: 350)
+    }
+    
+    // MARK: - Add Project Sheet
+    private var addProjectSheet: some View {
+        VStack(spacing: 20) {
+            Text("Create New Project")
+                .font(.headline)
+            
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Project Name")
+                        .font(.caption).foregroundColor(.secondary)
+                    TextField("e.g. Mobile App, Website redesign", text: $newProjectName)
+                        .textFieldStyle(.plain)
+                        .padding(8)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(6)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Theme Color")
+                        .font(.caption).foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        ForEach(Project.defaultColors, id: \.self) { hex in
+                            Circle()
+                                .fill(Color(hex: hex))
+                                .frame(width: 18, height: 18)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.primary, lineWidth: newProjectColorHex == hex ? 1.5 : 0)
+                                )
+                                .onTapGesture {
+                                    newProjectColorHex = hex
+                                }
+                        }
+                    }
+                }
+            }
+            
+            HStack {
+                Button("Cancel") {
+                    showAddProjectSheet = false
+                    newProjectName = ""
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                Button("Create Project") {
+                    if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        _ = manager.createProject(name: newProjectName, colorHex: newProjectColorHex)
+                        newProjectName = ""
+                        showAddProjectSheet = false
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(newProjectName.isEmpty)
+                
+                Button("Create & Plan Session") {
+                    if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let newProj = manager.createProject(name: newProjectName, colorHex: newProjectColorHex)
+                        newProjectName = ""
+                        showAddProjectSheet = false
+                        
+                        // Prefill planning sheet and show it
+                        plannedSessionProjectId = newProj.id
+                        plannedSessionTitle = ""
+                        plannedSessionDurationText = "20 min"
+                        
+                        // Present the planning sheet after dismissing the current sheet
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showAddPlannedSessionSheet = true
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(newProjectName.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
     }
 }
 
@@ -677,8 +776,27 @@ struct PlannedSessionRow: View {
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {
-        let mins = Int(duration) / 60
-        return "\(mins) min"
+        let totalSeconds = Int(duration)
+        if totalSeconds <= 0 {
+            return "0 sec"
+        }
+        
+        let hrs = totalSeconds / 3600
+        let mins = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+        
+        var parts: [String] = []
+        if hrs > 0 {
+            parts.append("\(hrs)h")
+        }
+        if mins > 0 {
+            parts.append("\(mins)min")
+        }
+        if secs > 0 {
+            parts.append("\(secs)sec")
+        }
+        
+        return parts.joined(separator: " ")
     }
 }
 
@@ -686,67 +804,141 @@ struct CompletedSessionRow: View {
     let session: Session
     let manager: SessionFlowManager
     
+    @State private var isNotesExpanded: Bool = false
+    @State private var isHovered: Bool = false
+    
+    private var hasNotes: Bool {
+        !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(session.title)
-                    .fontWeight(.semibold)
-                Spacer()
-                Text(formatDuration(session.duration))
-                    .font(.system(.body, design: .monospaced))
-                    .bold()
-                
-                Button(action: {
-                    withAnimation {
-                        manager.deleteSession(id: session.id)
+        VStack(alignment: .leading, spacing: 0) {
+            // Main card content
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    HStack(spacing: 6) {
+                        Text(session.title)
+                            .fontWeight(.semibold)
+                        
+                        // Notes indicator
+                        if hasNotes {
+                            Image(systemName: "note.text")
+                                .font(.system(size: 10))
+                                .foregroundColor(isNotesExpanded ? .accentColor : .secondary.opacity(0.5))
+                                .symbolEffect(.bounce, value: isNotesExpanded)
+                        }
                     }
-                }) {
-                    Image(systemName: "trash")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    Text(formatDuration(session.duration))
+                        .font(.system(.body, design: .monospaced))
+                        .bold()
+                    
+                    Button(action: {
+                        withAnimation {
+                            manager.deleteSession(id: session.id)
+                        }
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 8)
-            }
-            
-            HStack(spacing: 8) {
-                if let projId = session.projectRef,
-                   let proj = manager.projects.first(where: { $0.id == projId }) {
-                    HStack(spacing: 4) {
-                        Circle().fill(Color(hex: proj.colorHex)).frame(width: 6, height: 6)
-                        Text(proj.name)
+                
+                HStack(spacing: 8) {
+                    if let projId = session.projectRef,
+                       let proj = manager.projects.first(where: { $0.id == projId }) {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color(hex: proj.colorHex)).frame(width: 6, height: 6)
+                            Text(proj.name)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Standalone")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                } else {
-                    Text("Standalone")
+                    
+                    Text("•")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    
+                    Text(session.date.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
-                Text("•")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-                
-                Text(session.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
+            .padding(12)
             
-            if !session.notes.isEmpty {
-                Text(session.notes)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.secondary.opacity(0.04))
-                    .cornerRadius(4)
+            // Expandable Notes Panel
+            if isNotesExpanded && hasNotes {
+                VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.horizontal, 8)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "text.quote")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.accentColor.opacity(0.7))
+                        
+                        Text("SESSION NOTES")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                            .tracking(0.5)
+                    }
+                    .padding(.horizontal, 12)
+                    
+                    Text(session.notes)
+                        .font(.system(size: 12.5))
+                        .foregroundColor(.primary.opacity(0.85))
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 6)
+                }
+                .padding(.bottom, 6)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity
+                            .combined(with: .move(edge: .top))
+                            .combined(with: .scale(scale: 0.97, anchor: .top)),
+                        removal: .opacity
+                            .combined(with: .move(edge: .top))
+                            .combined(with: .scale(scale: 0.97, anchor: .top))
+                    )
+                )
             }
         }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+        .background(Color(NSColor.controlBackgroundColor).opacity(isHovered && hasNotes ? 0.8 : 0.6))
         .cornerRadius(8)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.08), lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(
+                    isNotesExpanded ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.08),
+                    lineWidth: isNotesExpanded ? 1.5 : 1
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard hasNotes else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                isNotesExpanded.toggle()
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+            if hovering && hasNotes {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -761,10 +953,14 @@ struct ProjectCard: View {
     let project: Project
     let manager: SessionFlowManager
     let onSelect: () -> Void
+    let onPlanSession: () -> Void
+    
+    @State private var isPlanHovered = false
     
     var body: some View {
-        let relatedSessions = manager.sessions.filter { $0.projectRef == project.id && $0.status == .completed }
-        let totalDuration = relatedSessions.reduce(0.0) { $0 + $1.duration }
+        let allSessions = manager.sessions.filter { $0.projectRef == project.id }
+        let completedSessions = allSessions.filter { $0.status == .completed }
+        let totalDuration = completedSessions.reduce(0.0) { $0 + $1.duration }
         
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -775,6 +971,14 @@ struct ProjectCard: View {
                         .fontWeight(.bold)
                 }
                 Spacer()
+                
+                Button(action: onPlanSession) {
+                    Image(systemName: "calendar.badge.plus")
+                        .foregroundColor(isPlanHovered ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .onHover { isPlanHovered = $0 }
+                .padding(.trailing, 8)
                 
                 Button(action: {
                     withAnimation {
@@ -789,7 +993,7 @@ struct ProjectCard: View {
             
             Divider()
             
-            HStack(spacing: 16) {
+            HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total Time")
                         .font(.caption)
@@ -799,15 +1003,36 @@ struct ProjectCard: View {
                         .bold()
                 }
                 
+                Spacer()
+                
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Sessions")
+                    Text("Total Sessions")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("\(relatedSessions.count)")
+                    Text("\(allSessions.count)")
+                        .font(.title3)
+                        .bold()
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Completed Sessions")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\(completedSessions.count)")
                         .font(.title3)
                         .bold()
                 }
             }
+            
+            HStack {
+                Spacer()
+                Text("Created: \(formatDate(project.createdAt))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 4)
         }
         .padding(16)
         .background(Color(NSColor.controlBackgroundColor))
@@ -826,6 +1051,13 @@ struct ProjectCard: View {
         let hrs = Int(duration) / 3600
         let mins = (Int(duration) % 3600) / 60
         return "\(hrs)h \(mins)m"
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateFormat = "d MMMM, yyyy 'at' h:mm a"
+        return formatter.string(from: date).lowercased()
     }
 }
 

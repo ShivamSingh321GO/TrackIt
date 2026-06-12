@@ -18,11 +18,31 @@ struct Project: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var name: String
     var colorHex: String
+    var createdAt: Date = Date()
     
     static let defaultColors = [
         "#FF5E5B", "#D81159", "#8F2D56", "#218380", "#73D2DE",
         "#4A90E2", "#50E3C2", "#F5A623", "#B8E986", "#9013FE"
     ]
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, colorHex, createdAt
+    }
+    
+    init(id: UUID = UUID(), name: String, colorHex: String, createdAt: Date = Date()) {
+        self.id = id
+        self.name = name
+        self.colorHex = colorHex
+        self.createdAt = createdAt
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.name = try container.decode(String.self, forKey: .name)
+        self.colorHex = try container.decode(String.self, forKey: .colorHex)
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
 }
 
 struct Session: Identifiable, Codable, Hashable {
@@ -34,6 +54,14 @@ struct Session: Identifiable, Codable, Hashable {
     var projectRef: UUID?
     var status: SessionStatus
     var voiceNoteUrl: String?
+    
+    // Compatibility-safe fields for chronological timeline tracking
+    var wasPlanned: Bool? = false
+    var datePlanned: Date? = nil
+    
+    var isPlannedSession: Bool {
+        wasPlanned ?? false
+    }
 }
 
 enum AppView {
@@ -348,6 +376,21 @@ class SessionFlowManager {
         resetTimer()
         timerDuration = 0
         timeElapsed = 0
+    }
+    
+    func planSession(title: String, duration: TimeInterval, projectId: UUID?) {
+        let plannedSession = Session(
+            title: title.isEmpty ? "Planned Work Block" : title,
+            duration: duration,
+            date: Date(),
+            notes: "",
+            projectRef: projectId,
+            status: .planned,
+            wasPlanned: true,
+            datePlanned: Date()
+        )
+        sessions.insert(plannedSession, at: 0)
+        saveData()
     }
     
     func createProject(name: String, colorHex: String) -> Project {

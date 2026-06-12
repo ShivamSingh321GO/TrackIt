@@ -27,11 +27,15 @@ struct ContentView: View {
             Group {
                 if manager.currentView == .timer {
                     timerView
-                } else {
-                    WorkspaceView(manager: manager)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
                             removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
+                } else {
+                    WorkspaceView(manager: manager)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
                         ))
                 }
             }
@@ -91,7 +95,7 @@ struct ContentView: View {
         }
         .onChange(of: manager.currentView) { oldValue, newValue in
             guard let window = appWindow else { return }
-            // Only handle timer transition here; workspace is handled pre-switch
+            // Only handle timer transition asynchronously; workspace is handled synchronously pre-switch
             if newValue == .timer {
                 updateWindowConstraints(window: window)
             }
@@ -193,9 +197,12 @@ struct ContentView: View {
                             if geometry.size.width >= 200 {
                                 // Workspace Toggle Button
                                 Button(action: {
-                                    // Resize window FIRST, then switch view
                                     if let window = appWindow {
+                                        window.styleMask.insert(.resizable)
                                         let workspaceSize = NSSize(width: 850, height: 550)
+                                        window.minSize = workspaceSize
+                                        window.maxSize = NSSize(width: 10000, height: 10000)
+                                        
                                         let currentFrame = window.frame
                                         let newWidth = max(currentFrame.width, workspaceSize.width)
                                         let newHeight = max(currentFrame.height, workspaceSize.height)
@@ -205,10 +212,10 @@ struct ContentView: View {
                                             width: newWidth,
                                             height: newHeight
                                         )
-                                        window.styleMask.insert(.resizable)
-                                        window.setFrame(newFrame, display: true, animate: false)
+                                        window.setFrame(newFrame, display: true, animate: true)
                                     }
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    
+                                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                                         manager.isCompactMode = false
                                         manager.currentView = .workspace
                                     }
@@ -331,6 +338,9 @@ struct ContentView: View {
                 
                 // Adjust frame to exact compact size
                 let compactSize = NSSize(width: 80, height: 28)
+                window.minSize = compactSize
+                window.maxSize = compactSize
+                
                 let currentFrame = window.frame
                 let newFrame = NSRect(
                     x: currentFrame.origin.x + (currentFrame.width - compactSize.width),
@@ -361,6 +371,9 @@ struct ContentView: View {
                 window.standardWindowButton(.zoomButton)?.isHidden = false
                 
                 let workspaceSize = NSSize(width: 850, height: 550)
+                window.minSize = workspaceSize
+                window.maxSize = NSSize(width: 10000, height: 10000)
+                
                 let currentFrame = window.frame
                 let newWidth = max(currentFrame.width, workspaceSize.width)
                 let newHeight = max(currentFrame.height, workspaceSize.height)
@@ -376,8 +389,8 @@ struct ContentView: View {
                 // Restore window level
                 window.level = .normal
                 
-                // Re-enable resizable style
-                window.styleMask.insert(.resizable)
+                // Disable resizing in normal timer mode to keep it as a fixed-size widget
+                window.styleMask.remove(.resizable)
                 
                 // Show standard buttons in normal mode
                 window.standardWindowButton(.closeButton)?.isHidden = false
@@ -385,6 +398,9 @@ struct ContentView: View {
                 window.standardWindowButton(.zoomButton)?.isHidden = false
                 
                 let normalSize = NSSize(width: 240, height: 140)
+                window.minSize = normalSize
+                window.maxSize = normalSize
+                
                 let currentFrame = window.frame
                 let newFrame = NSRect(
                     x: currentFrame.origin.x - (normalSize.width - currentFrame.width),
