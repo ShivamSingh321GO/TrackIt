@@ -449,6 +449,13 @@ class SessionFlowManager {
         saveData()
     }
     
+    func moveSession(id: UUID, toGroupId: UUID?) {
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[index].taskGroupRef = toGroupId
+            saveData()
+        }
+    }
+    
     private func loadData() {
         let defaults = UserDefaults.standard
         if let sessionsData = defaults.data(forKey: "SF_Sessions"),

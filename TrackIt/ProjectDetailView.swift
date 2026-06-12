@@ -123,7 +123,7 @@ struct ProjectDetailView: View {
                                 
                                 VStack(spacing: 6) {
                                     ForEach(ungroupedSessions) { session in
-                                        SessionRow(session: session, manager: manager)
+                                        SessionRow(session: session, manager: manager, projectId: project.id)
                                     }
                                 }
                             }
@@ -342,7 +342,7 @@ struct TaskGroupCard: View {
                                 .frame(width: 18)
                                 
                                 // Session content card
-                                SessionRow(session: session, manager: manager, showDot: false)
+                                SessionRow(session: session, manager: manager, showDot: false, projectId: group.projectRef)
                             }
                         }
                     }
@@ -402,6 +402,7 @@ struct SessionRow: View {
     let session: Session
     let manager: SessionFlowManager
     var showDot: Bool = true
+    var projectId: UUID? = nil
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false
@@ -501,6 +502,46 @@ struct SessionRow: View {
                         .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
+                }
+                
+                // Move to group
+                if let projId = projectId {
+                    let groups = manager.taskGroups.filter { $0.projectRef == projId }
+                    if !groups.isEmpty {
+                        Menu {
+                            Section("Move to Group") {
+                                Button {
+                                    withAnimation { manager.moveSession(id: session.id, toGroupId: nil) }
+                                } label: {
+                                    if session.taskGroupRef == nil {
+                                        Label("Ungrouped", systemImage: "checkmark")
+                                    } else {
+                                        Text("Ungrouped")
+                                    }
+                                }
+                                
+                                ForEach(groups) { group in
+                                    Button {
+                                        withAnimation { manager.moveSession(id: session.id, toGroupId: group.id) }
+                                    } label: {
+                                        if session.taskGroupRef == group.id {
+                                            Label(group.name, systemImage: "checkmark")
+                                        } else {
+                                            Text(group.name)
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "folder.badge.gearshape")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary.opacity(0.5))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help("Move to another group")
+                    }
                 }
                 
                 // Delete
