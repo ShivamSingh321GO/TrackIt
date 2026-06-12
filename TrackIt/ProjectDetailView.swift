@@ -292,7 +292,7 @@ struct TaskGroupCard: View {
             .contentShape(Rectangle())
             .onTapGesture { onToggle() }
             
-            // Sessions (indented)
+            // Sessions (timeline thread inside card)
             if !isCollapsed {
                 if sessions.isEmpty {
                     Text("No sessions — tap ＋ to plan one")
@@ -303,13 +303,51 @@ struct TaskGroupCard: View {
                         .padding(.vertical, 10)
                         .padding(.leading, 24)
                 } else {
-                    VStack(spacing: 6) {
-                        ForEach(sessions) { session in
-                            SessionRow(session: session, manager: manager)
-                                .padding(.leading, 24)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
+                            let isFirst = idx == 0
+                            let isLast = idx == sessions.count - 1
+                            let lineColor = sessionLineColor(session)
+                            
+                            HStack(alignment: .top, spacing: 12) {
+                                // Timeline column: vertical line + dot
+                                ZStack(alignment: .top) {
+                                    // Continuous vertical line
+                                    GeometryReader { geo in
+                                        VStack(spacing: 0) {
+                                            // Line above dot
+                                            if isFirst {
+                                                Color.clear.frame(width: 2, height: 16)
+                                            } else {
+                                                Rectangle()
+                                                    .fill(lineColor)
+                                                    .frame(width: 2, height: 16)
+                                            }
+                                            // Line below dot
+                                            if isLast {
+                                                Color.clear.frame(width: 2)
+                                            } else {
+                                                Rectangle()
+                                                    .fill(lineColor)
+                                                    .frame(width: 2)
+                                            }
+                                        }
+                                    }
+                                    .frame(width: 2)
+                                    
+                                    // Status dot on the line
+                                    sessionDot(session)
+                                        .padding(.top, 10)
+                                }
+                                .frame(width: 18)
+                                
+                                // Session content card
+                                SessionRow(session: session, manager: manager, showDot: false)
+                            }
                         }
                     }
-                    .padding(.top, 8)
+                    .padding(.leading, 16)
+                    .padding(.top, 6)
                     .padding(.bottom, 4)
                 }
             }
@@ -324,6 +362,38 @@ struct TaskGroupCard: View {
         )
         .cornerRadius(10)
     }
+    
+    private func sessionLineColor(_ s: Session) -> Color {
+        switch s.status {
+        case .completed: return .green.opacity(0.35)
+        case .running: return .accentColor.opacity(0.35)
+        case .planned: return .secondary.opacity(0.18)
+        }
+    }
+    
+    @ViewBuilder
+    private func sessionDot(_ s: Session) -> some View {
+        if s.status == .completed {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.system(size: 14))
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+        } else if s.status == .running {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 10, height: 10)
+                .overlay(
+                    Circle()
+                        .stroke(Color.accentColor.opacity(0.3), lineWidth: 3)
+                        .scaleEffect(1.2)
+                )
+        } else {
+            Circle()
+                .stroke(Color.secondary.opacity(0.4), lineWidth: 2)
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+                .frame(width: 10, height: 10)
+        }
+    }
 }
 
 // MARK: - Session Row
@@ -331,6 +401,7 @@ struct TaskGroupCard: View {
 struct SessionRow: View {
     let session: Session
     let manager: SessionFlowManager
+    var showDot: Bool = true
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false
@@ -342,8 +413,10 @@ struct SessionRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                // Status dot
-                dotView
+                // Status dot (hidden when used inside timeline column)
+                if showDot {
+                    dotView
+                }
                 
                 // Title & subtitle
                 VStack(alignment: .leading, spacing: 3) {
