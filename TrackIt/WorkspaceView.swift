@@ -19,6 +19,7 @@ struct WorkspaceView: View {
     @State private var plannedSessionTitle: String = ""
     @State private var plannedSessionDurationText: String = "20 min"
     @State private var plannedSessionProjectId: UUID? = nil
+    @State private var plannedSessionTaskGroupId: UUID? = nil
     
     // Project creation state
     @State private var showAddProjectSheet: Bool = false
@@ -536,6 +537,27 @@ struct WorkspaceView: View {
                         }
                     }
                     .labelsHidden()
+                    .onChange(of: plannedSessionProjectId) { _, _ in
+                        plannedSessionTaskGroupId = nil
+                    }
+                }
+                
+                // Task Group Picker (if project selected)
+                if let projId = plannedSessionProjectId {
+                    let groups = manager.taskGroups.filter { $0.projectRef == projId }
+                    if !groups.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Task Group")
+                                .font(.caption).foregroundColor(.secondary)
+                            Picker("", selection: $plannedSessionTaskGroupId) {
+                                Text("No Group").tag(nil as UUID?)
+                                ForEach(groups) { group in
+                                    Text(group.name).tag(group.id as UUID?)
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                    }
                 }
             }
             
@@ -555,10 +577,12 @@ struct WorkspaceView: View {
                     manager.planSession(
                         title: plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle,
                         duration: duration,
-                        projectId: plannedSessionProjectId
+                        projectId: plannedSessionProjectId,
+                        taskGroupId: plannedSessionTaskGroupId
                     )
                     showAddPlannedSessionSheet = false
                     plannedSessionTitle = ""
+                    plannedSessionTaskGroupId = nil
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(plannedSessionTitle.isEmpty)

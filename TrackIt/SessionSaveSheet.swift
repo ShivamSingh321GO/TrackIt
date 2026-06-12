@@ -14,6 +14,7 @@ struct SessionSaveSheet: View {
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var selectedProjectId: UUID? = nil
+    @State private var selectedTaskGroupId: UUID? = nil
     
     // For creating a new project inline
     @State private var showNewProjectField: Bool = false
@@ -166,6 +167,32 @@ struct SessionSaveSheet: View {
                         }
                     }
                     
+                    // Task Group Picker (shown when a project is selected)
+                    if selectedProjectId != nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Task Group")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
+                            
+                            let groups = manager.taskGroups.filter { $0.projectRef == selectedProjectId }
+                            
+                            if groups.isEmpty {
+                                Text("No task groups in this project.")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Picker("", selection: $selectedTaskGroupId) {
+                                    Text("No Group").tag(nil as UUID?)
+                                    ForEach(groups) { group in
+                                        Text(group.name).tag(group.id as UUID?)
+                                    }
+                                }
+                                .labelsHidden()
+                            }
+                        }
+                    }
+                    
                     // Notes Input
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Notes")
@@ -205,6 +232,7 @@ struct SessionSaveSheet: View {
                         title: title,
                         notes: notes,
                         projectId: selectedProjectId,
+                        taskGroupId: selectedTaskGroupId,
                         duration: duration
                     )
                     dismiss()
@@ -222,6 +250,7 @@ struct SessionSaveSheet: View {
                let activeSession = manager.sessions.first(where: { $0.id == activeId }) {
                 title = activeSession.title
                 selectedProjectId = activeSession.projectRef
+                selectedTaskGroupId = activeSession.taskGroupRef
                 notes = activeSession.notes
             }
         }

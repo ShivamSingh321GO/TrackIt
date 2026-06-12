@@ -54,6 +54,7 @@ struct Session: Identifiable, Codable, Hashable {
     var projectRef: UUID?
     var status: SessionStatus
     var voiceNoteUrl: String?
+    var taskGroupRef: UUID? = nil
     
     // Compatibility-safe fields for chronological timeline tracking
     var wasPlanned: Bool? = false
@@ -62,6 +63,13 @@ struct Session: Identifiable, Codable, Hashable {
     var isPlannedSession: Bool {
         wasPlanned ?? false
     }
+}
+
+struct TaskGroup: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var name: String
+    var projectRef: UUID
+    var createdAt: Date = Date()
 }
 
 enum AppView {
@@ -82,6 +90,7 @@ class SessionFlowManager {
     // Core Data Lists
     var sessions: [Session] = []
     var projects: [Project] = []
+    var taskGroups: [TaskGroup] = []
     
     // UI Navigation State
     var currentView: AppView = .timer
@@ -342,7 +351,7 @@ class SessionFlowManager {
     
     // MARK: - Data Management & Persistence
     
-    func saveSession(title: String, notes: String, projectId: UUID?, duration: TimeInterval) {
+    func saveSession(title: String, notes: String, projectId: UUID?, taskGroupId: UUID? = nil, duration: TimeInterval) {
         let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Session" : title
         
         if let activeId = activeSessionId, let index = sessions.firstIndex(where: { $0.id == activeId }) {
@@ -350,6 +359,7 @@ class SessionFlowManager {
             sessions[index].title = finalTitle
             sessions[index].notes = notes
             sessions[index].projectRef = projectId
+            sessions[index].taskGroupRef = taskGroupId
             sessions[index].duration = duration
             sessions[index].date = Date()
             sessions[index].status = .completed
@@ -365,7 +375,8 @@ class SessionFlowManager {
                 date: Date(),
                 notes: notes,
                 projectRef: projectId,
-                status: .completed
+                status: .completed,
+                taskGroupRef: taskGroupId
             )
             sessions.insert(newSession, at: 0)
         }
@@ -378,7 +389,7 @@ class SessionFlowManager {
         timeElapsed = 0
     }
     
-    func planSession(title: String, duration: TimeInterval, projectId: UUID?) {
+    func planSession(title: String, duration: TimeInterval, projectId: UUID?, taskGroupId: UUID? = nil) {
         let plannedSession = Session(
             title: title.isEmpty ? "Planned Work Block" : title,
             duration: duration,
@@ -386,6 +397,7 @@ class SessionFlowManager {
             notes: "",
             projectRef: projectId,
             status: .planned,
+            taskGroupRef: taskGroupId,
             wasPlanned: true,
             datePlanned: Date()
         )
@@ -407,10 +419,31 @@ class SessionFlowManager {
     
     func deleteProject(id: UUID) {
         projects.removeAll { $0.id == id }
-        // Keep sessions but unset their projectRef
+        // Remove task groups belonging to this project
+        taskGroups.removeAll { $0.projectRef == id }
+        // Keep sessions but unset their projectRef and taskGroupRef
         for i in 0..<sessions.count {
             if sessions[i].projectRef == id {
                 sessions[i].projectRef = nil
+                sessions[i].taskGroupRef = nil
+            }
+        }
+        saveData()
+    }
+    
+    func createTaskGroup(name: String, projectRef: UUID) -> TaskGroup {
+        let group = TaskGroup(name: name, projectRef: projectRef)
+        taskGroups.append(group)
+        saveData()
+        return group
+    }
+    
+    func deleteTaskGroup(id: UUID) {
+        taskGroups.removeAll { $0.id == id }
+        // Unset taskGroupRef for sessions in this group
+        for i in 0..<sessions.count {
+            if sessions[i].taskGroupRef == id {
+                sessions[i].taskGroupRef = nil
             }
         }
         saveData()
@@ -426,6 +459,10 @@ class SessionFlowManager {
            let decoded = try? JSONDecoder().decode([Project].self, from: projectsData) {
             self.projects = decoded
         }
+        if let groupsData = defaults.data(forKey: "SF_TaskGroups"),
+           let decoded = try? JSONDecoder().decode([TaskGroup].self, from: groupsData) {
+            self.taskGroups = decoded
+        }
     }
     
     private func saveData() {
@@ -435,6 +472,9 @@ class SessionFlowManager {
         }
         if let encoded = try? JSONEncoder().encode(projects) {
             defaults.set(encoded, forKey: "SF_Projects")
+        }
+        if let encoded = try? JSONEncoder().encode(taskGroups) {
+            defaults.set(encoded, forKey: "SF_TaskGroups")
         }
     }
 }
