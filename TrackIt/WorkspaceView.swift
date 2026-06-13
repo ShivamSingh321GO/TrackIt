@@ -20,6 +20,10 @@ struct WorkspaceView: View {
     @State private var plannedSessionDurationText: String = "20 min"
     @State private var plannedSessionProjectId: UUID? = nil
     @State private var plannedSessionTaskGroupId: UUID? = nil
+    @State private var plannedSessionTagIds: Set<UUID> = []
+    @State private var showNewTagInSheet: Bool = false
+    @State private var newTagNameInSheet: String = ""
+    @State private var newTagColorInSheet: String = Tag.defaultColors.first ?? "#FF6B6B"
     
     // Project creation state
     @State private var showAddProjectSheet: Bool = false
@@ -307,6 +311,28 @@ struct WorkspaceView: View {
                                 }
                             }
                         }
+                        
+                        // Matching Groups List
+                        let matchedGroups = searchGroups()
+                        if !matchedGroups.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Matching Task Groups (\(matchedGroups.count))")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                VStack(spacing: 10) {
+                                    ForEach(matchedGroups) { group in
+                                        MatchingGroupRow(group: group, manager: manager, onSelect: {
+                                            if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
+                                                selectedProject = proj
+                                                workspaceTab = .projects
+                                            }
+                                        })
+                                    }
+                                }
+                            }
+                            .padding(.top, 10)
+                        }
                     }
                     .padding(24)
                 }
@@ -464,7 +490,65 @@ struct WorkspaceView: View {
                 projectMatch = proj.name.lowercased().contains(keyword)
             }
             
-            return titleMatch || notesMatch || projectMatch
+            // Session Tags Match
+            var tagMatch = false
+            let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
+                manager.tags.first { $0.id == tagId }
+            }
+            for tag in sessionTags {
+                if tag.name.lowercased().contains(keyword) {
+                    tagMatch = true
+                    break
+                }
+            }
+            
+            // Task Group Match
+            var groupMatch = false
+            var groupTagMatch = false
+            if let groupId = session.taskGroupRef,
+               let group = manager.taskGroups.first(where: { $0.id == groupId }) {
+                groupMatch = group.name.lowercased().contains(keyword)
+                
+                // Task Group Tags Match
+                let groupTags = (group.tagRefs ?? []).compactMap { tagId in
+                    manager.groupTags.first { $0.id == tagId }
+                }
+                for tag in groupTags {
+                    if tag.name.lowercased().contains(keyword) {
+                        groupTagMatch = true
+                        break
+                    }
+                }
+            }
+            
+            return titleMatch || notesMatch || projectMatch || tagMatch || groupMatch || groupTagMatch
+        }
+    }
+    
+    private func searchGroups() -> [TaskGroup] {
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if keyword.isEmpty { return [] }
+        
+        return manager.taskGroups.filter { group in
+            let nameMatch = group.name.lowercased().contains(keyword)
+            
+            var projectMatch = false
+            if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
+                projectMatch = proj.name.lowercased().contains(keyword)
+            }
+            
+            var tagMatch = false
+            let groupTags = (group.tagRefs ?? []).compactMap { tagId in
+                manager.groupTags.first { $0.id == tagId }
+            }
+            for tag in groupTags {
+                if tag.name.lowercased().contains(keyword) {
+                    tagMatch = true
+                    break
+                }
+            }
+            
+            return nameMatch || projectMatch || tagMatch
         }
     }
     
@@ -559,6 +643,75 @@ struct WorkspaceView: View {
                         }
                     }
                 }
+                
+                // Tags Section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Tags")
+                        .font(.caption).foregroundColor(.secondary)
+                    
+                    if !manager.tags.isEmpty {
+                        FlowLayout(spacing: 6) {
+                            ForEach(manager.tags) { tag in
+                                TagChip(
+                                    tag: tag,
+                                    isSelected: plannedSessionTagIds.contains(tag.id),
+                                    isCheckable: true
+                                ) {
+                                    if plannedSessionTagIds.contains(tag.id) {
+                                        plannedSessionTagIds.remove(tag.id)
+                                    } else {
+                                        plannedSessionTagIds.insert(tag.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if showNewTagInSheet {
+                        HStack {
+                            TextField("Tag name", text: $newTagNameInSheet)
+                                .textFieldStyle(.plain)
+                                .padding(6)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(4)
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                            
+                            HStack(spacing: 4) {
+                                ForEach(Tag.defaultColors.prefix(5), id: \.self) { hex in
+                                    Circle().fill(Color(hex: hex)).frame(width: 14, height: 14)
+                                        .overlay(Circle().stroke(Color.primary, lineWidth: newTagColorInSheet == hex ? 1.5 : 0))
+                                        .onTapGesture { newTagColorInSheet = hex }
+                                }
+                            }
+                            
+                            Button("Add") {
+                                let t = newTagNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !t.isEmpty {
+                                    let tag = manager.createTag(name: t, colorHex: newTagColorInSheet)
+                                    plannedSessionTagIds.insert(tag.id)
+                                    newTagNameInSheet = ""
+                                    showNewTagInSheet = false
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(newTagNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            
+                            Button("Cancel") { showNewTagInSheet = false; newTagNameInSheet = "" }
+                                .buttonStyle(.plain).font(.caption).foregroundColor(.secondary)
+                        }
+                    } else {
+                        Button(action: { showNewTagInSheet = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus.circle")
+                                Text("New Tag")
+                            }
+                            .font(.footnote)
+                            .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             
             HStack {
@@ -578,11 +731,14 @@ struct WorkspaceView: View {
                         title: plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle,
                         duration: duration,
                         projectId: plannedSessionProjectId,
-                        taskGroupId: plannedSessionTaskGroupId
+                        taskGroupId: plannedSessionTaskGroupId,
+                        tagIds: Array(plannedSessionTagIds)
                     )
                     showAddPlannedSessionSheet = false
                     plannedSessionTitle = ""
                     plannedSessionTaskGroupId = nil
+                    plannedSessionTagIds = []
+                    showNewTagInSheet = false
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(plannedSessionTitle.isEmpty)
@@ -746,6 +902,18 @@ struct PlannedSessionRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                
+                // Tags
+                let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
+                    manager.tags.first { $0.id == tagId }
+                }
+                if !sessionTags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(sessionTags) { tag in
+                            TagChip(tag: tag)
+                        }
+                    }
+                }
             }
             Spacer()
             
@@ -893,6 +1061,18 @@ struct CompletedSessionRow: View {
                     Text(session.date.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+                
+                // Tags
+                let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
+                    manager.tags.first { $0.id == tagId }
+                }
+                if !sessionTags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(sessionTags) { tag in
+                            TagChip(tag: tag)
+                        }
+                    }
                 }
             }
             .padding(12)
@@ -1137,6 +1317,108 @@ struct ReportCard: View {
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(10)
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let hrs = Int(duration) / 3600
+        let mins = (Int(duration) % 3600) / 60
+        let secs = Int(duration) % 60
+        return String(format: "%02d:%02d:%02d", hrs, mins, secs)
+    }
+}
+
+struct MatchingGroupRow: View {
+    let group: TaskGroup
+    let manager: SessionFlowManager
+    let onSelect: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        let sessionsInGroup = manager.sessions.filter { $0.taskGroupRef == group.id }
+        let completed = sessionsInGroup.filter { $0.status == .completed }
+        let totalDuration = completed.reduce(0.0) { $0 + $1.duration }
+        let project = manager.projects.first { $0.id == group.projectRef }
+        
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.accentColor)
+                    Text(group.name)
+                        .fontWeight(.semibold)
+                    
+                    if let proj = project {
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Circle()
+                            .fill(Color(hex: proj.colorHex))
+                            .frame(width: 6, height: 6)
+                        Text(proj.name)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                HStack(spacing: 12) {
+                    Text("\(completed.count)/\(sessionsInGroup.count) Sessions Done")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("•")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    
+                    Text("Total Time: \(formatDuration(totalDuration))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Group Tags
+                let tags = (group.tagRefs ?? []).compactMap { tagId in
+                    manager.groupTags.first { $0.id == tagId }
+                }
+                if !tags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(tags) { tag in
+                            TagChip(tag: tag)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: onSelect) {
+                HStack(spacing: 4) {
+                    Text("View Project")
+                    Image(systemName: "arrow.right")
+                }
+                .font(.footnote)
+                .bold()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.12))
+                .foregroundColor(.accentColor)
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
+        )
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {

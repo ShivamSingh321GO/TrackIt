@@ -18,6 +18,12 @@ struct ProjectDetailView: View {
     @State private var planningForTaskGroupId: UUID? = nil
     @State private var collapsedGroups: Set<UUID> = []
     
+    // For group tags selection/creation in addTaskGroupSheet
+    @State private var selectedGroupTagIds: Set<UUID> = []
+    @State private var showNewGroupTagField: Bool = false
+    @State private var newGroupTagName: String = ""
+    @State private var selectedGroupTagColorHex: String = Tag.defaultColors.first ?? "#FF6B6B"
+    
     private var groups: [TaskGroup] {
         manager.taskGroups
             .filter { $0.projectRef == project.id }
@@ -187,27 +193,139 @@ struct ProjectDetailView: View {
     private var addTaskGroupSheet: some View {
         VStack(spacing: 20) {
             Text("Create Task Group").font(.headline)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Group Name").font(.caption).foregroundColor(.secondary)
-                TextField("e.g. Frontend, Backend, Database", text: $newTaskGroupName)
-                    .textFieldStyle(.plain)
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(6)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Group Name").font(.caption).foregroundColor(.secondary)
+                        TextField("e.g. Frontend, Backend, Database", text: $newTaskGroupName)
+                            .textFieldStyle(.plain)
+                            .padding(8)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                    }
+                    
+                    // Group Tags Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Group Tags")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                        
+                        if !manager.groupTags.isEmpty {
+                            FlowLayout(spacing: 6) {
+                                ForEach(manager.groupTags) { tag in
+                                    TagChip(
+                                        tag: tag,
+                                        isSelected: selectedGroupTagIds.contains(tag.id),
+                                        isCheckable: true
+                                    ) {
+                                        if selectedGroupTagIds.contains(tag.id) {
+                                            selectedGroupTagIds.remove(tag.id)
+                                        } else {
+                                            selectedGroupTagIds.insert(tag.id)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if !showNewGroupTagField {
+                            Text("No group tags created yet.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if showNewGroupTagField {
+                            VStack(spacing: 10) {
+                                TextField("Tag name (e.g. core, experimental)", text: $newGroupTagName)
+                                    .textFieldStyle(.plain)
+                                    .padding(8)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(6)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                                    )
+                                
+                                HStack(spacing: 6) {
+                                    ForEach(Tag.defaultColors, id: \.self) { hex in
+                                        Circle()
+                                            .fill(Color(hex: hex))
+                                            .frame(width: 16, height: 16)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.primary, lineWidth: selectedGroupTagColorHex == hex ? 1.5 : 0)
+                                            )
+                                            .onTapGesture { selectedGroupTagColorHex = hex }
+                                    }
+                                }
+                                
+                                HStack {
+                                    Button("Cancel") {
+                                        showNewGroupTagField = false
+                                        newGroupTagName = ""
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.secondary)
+                                    .font(.footnote)
+                                    
+                                    Spacer()
+                                    
+                                    Button("Create & Select") {
+                                        let trimmed = newGroupTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !trimmed.isEmpty {
+                                            let newTag = manager.createGroupTag(name: trimmed, colorHex: selectedGroupTagColorHex)
+                                            selectedGroupTagIds.insert(newTag.id)
+                                            newGroupTagName = ""
+                                            showNewGroupTagField = false
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .disabled(newGroupTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
+                            }
+                            .padding(10)
+                            .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
+                            .cornerRadius(8)
+                            .transition(.slide.combined(with: .opacity))
+                        } else {
+                            Button(action: {
+                                withAnimation { showNewGroupTagField = true }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                    Text("New Group Tag")
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 2)
+                        }
+                    }
+                }
             }
+            .frame(maxHeight: 280)
+            
             HStack {
                 Button("Cancel") {
                     showAddTaskGroupSheet = false
                     newTaskGroupName = ""
+                    selectedGroupTagIds = []
+                    showNewGroupTagField = false
+                    newGroupTagName = ""
                 }
                 .buttonStyle(.bordered)
                 Spacer()
                 Button("Create Group") {
                     let t = newTaskGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !t.isEmpty {
-                        _ = manager.createTaskGroup(name: t, projectRef: project.id)
+                        _ = manager.createTaskGroup(name: t, projectRef: project.id, tagRefs: Array(selectedGroupTagIds))
                         newTaskGroupName = ""
+                        selectedGroupTagIds = []
+                        showNewGroupTagField = false
+                        newGroupTagName = ""
                         showAddTaskGroupSheet = false
                     }
                 }
@@ -216,7 +334,7 @@ struct ProjectDetailView: View {
             }
         }
         .padding(20)
-        .frame(width: 350)
+        .frame(width: 400)
     }
 }
 
@@ -265,6 +383,18 @@ struct TaskGroupCard: View {
                     .padding(.vertical, 1)
                     .background(Color.secondary.opacity(0.12))
                     .cornerRadius(4)
+                
+                // Group Tags
+                let groupTags = (group.tagRefs ?? []).compactMap { tagId in
+                    manager.groupTags.first { $0.id == tagId }
+                }
+                if !groupTags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(groupTags) { tag in
+                            TagChip(tag: tag)
+                        }
+                    }
+                }
                 
                 Spacer()
                 
@@ -406,6 +536,11 @@ struct SessionRow: View {
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false
+    @State private var showTagEditor: Bool = false
+    @State private var editingTagIds: Set<UUID> = []
+    @State private var showNewTagInEditor: Bool = false
+    @State private var newTagNameInEditor: String = ""
+    @State private var newTagColorInEditor: String = Tag.defaultColors.first ?? "#FF6B6B"
     
     private var hasNotes: Bool {
         !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -446,6 +581,18 @@ struct SessionRow: View {
                             Text(session.date.formatted(date: .abbreviated, time: .shortened))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // Tags
+                    let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
+                        manager.tags.first { $0.id == tagId }
+                    }
+                    if !sessionTags.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(sessionTags) { tag in
+                                TagChip(tag: tag)
+                            }
                         }
                     }
                 }
@@ -542,6 +689,111 @@ struct SessionRow: View {
                         .fixedSize()
                         .help("Move to another group")
                     }
+                }
+                
+                // Edit tags
+                Button(action: {
+                    editingTagIds = Set(session.tagRefs ?? [])
+                    showNewTagInEditor = false
+                    newTagNameInEditor = ""
+                    showTagEditor.toggle()
+                }) {
+                    Image(systemName: "tag")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .help("Edit tags")
+                .popover(isPresented: $showTagEditor) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Edit Tags")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                        
+                        if !manager.tags.isEmpty {
+                            FlowLayout(spacing: 6) {
+                                ForEach(manager.tags) { tag in
+                                    TagChip(
+                                        tag: tag,
+                                        isSelected: editingTagIds.contains(tag.id),
+                                        isCheckable: true
+                                    ) {
+                                        if editingTagIds.contains(tag.id) {
+                                            editingTagIds.remove(tag.id)
+                                        } else {
+                                            editingTagIds.insert(tag.id)
+                                        }
+                                        manager.updateSessionTags(id: session.id, tagIds: Array(editingTagIds))
+                                    }
+                                }
+                            }
+                        } else if !showNewTagInEditor {
+                            Text("No tags yet.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Divider()
+                        
+                        if showNewTagInEditor {
+                            VStack(spacing: 8) {
+                                TextField("Tag name", text: $newTagNameInEditor)
+                                    .textFieldStyle(.plain)
+                                    .padding(6)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(4)
+                                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                                
+                                HStack(spacing: 4) {
+                                    ForEach(Tag.defaultColors.prefix(5), id: \.self) { hex in
+                                        Circle().fill(Color(hex: hex)).frame(width: 14, height: 14)
+                                            .overlay(Circle().stroke(Color.primary, lineWidth: newTagColorInEditor == hex ? 1.5 : 0))
+                                            .onTapGesture { newTagColorInEditor = hex }
+                                    }
+                                    Spacer()
+                                }
+                                
+                                HStack {
+                                    Button("Cancel") {
+                                        showNewTagInEditor = false
+                                        newTagNameInEditor = ""
+                                    }
+                                    .buttonStyle(.plain)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                    
+                                    Button("Create & Add") {
+                                        let t = newTagNameInEditor.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !t.isEmpty {
+                                            let tag = manager.createTag(name: t, colorHex: newTagColorInEditor)
+                                            editingTagIds.insert(tag.id)
+                                            manager.updateSessionTags(id: session.id, tagIds: Array(editingTagIds))
+                                            newTagNameInEditor = ""
+                                            showNewTagInEditor = false
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .disabled(newTagNameInEditor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
+                            }
+                        } else {
+                            Button(action: { showNewTagInEditor = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                    Text("New Tag")
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(14)
+                    .frame(width: 240)
                 }
                 
                 // Delete
@@ -658,6 +910,16 @@ struct ProjectPlanSessionSheet: View {
     @State private var selectedGroupId: UUID? = nil
     @State private var showNewGroup: Bool = false
     @State private var newGroupName: String = ""
+    @State private var selectedTagIds: Set<UUID> = []
+    @State private var showNewTagField: Bool = false
+    @State private var newTagName: String = ""
+    @State private var selectedTagColorHex: String = Tag.defaultColors.first ?? "#FF6B6B"
+    
+    // For inline group tag creation/selection
+    @State private var selectedGroupTagIdsForNewGroup: Set<UUID> = []
+    @State private var showNewGroupTagFieldForNewGroup: Bool = false
+    @State private var newGroupTagNameForNewGroup: String = ""
+    @State private var selectedGroupTagColorHexForNewGroup: String = Tag.defaultColors.first ?? "#FF6B6B"
     
     @Environment(\.dismiss) var dismiss
     
@@ -665,73 +927,230 @@ struct ProjectPlanSessionSheet: View {
         VStack(spacing: 20) {
             Text("Plan a Future Session").font(.headline)
             
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Session Task Name").font(.caption).foregroundColor(.secondary)
-                    TextField("e.g. Design Login Screen", text: $title)
-                        .textFieldStyle(.plain)
-                        .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(6)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Target Duration").font(.caption).foregroundColor(.secondary)
-                    TextField("e.g. 45 min, 1h 30m", text: $durationText)
-                        .textFieldStyle(.plain)
-                        .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(6)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
-                }
-                
-                // Task Group Picker
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Task Group").font(.caption).foregroundColor(.secondary)
-                    let groups = manager.taskGroups.filter { $0.projectRef == project.id }
-                    Picker("", selection: $selectedGroupId) {
-                        Text("No Group").tag(nil as UUID?)
-                        ForEach(groups) { g in Text(g.name).tag(g.id as UUID?) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Session Task Name").font(.caption).foregroundColor(.secondary)
+                        TextField("e.g. Design Login Screen", text: $title)
+                            .textFieldStyle(.plain)
+                            .padding(8)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                     }
-                    .labelsHidden()
                     
-                    if showNewGroup {
-                        HStack {
-                            TextField("New group name", text: $newGroupName)
-                                .textFieldStyle(.plain)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Target Duration").font(.caption).foregroundColor(.secondary)
+                        TextField("e.g. 45 min, 1h 30m", text: $durationText)
+                            .textFieldStyle(.plain)
+                            .padding(8)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                    }
+                    
+                    // Task Group Picker
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Task Group").font(.caption).foregroundColor(.secondary)
+                        let groups = manager.taskGroups.filter { $0.projectRef == project.id }
+                        Picker("", selection: $selectedGroupId) {
+                            Text("No Group").tag(nil as UUID?)
+                            ForEach(groups) { g in Text(g.name).tag(g.id as UUID?) }
+                        }
+                        .labelsHidden()
+                        
+                        if showNewGroup {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    TextField("New group name", text: $newGroupName)
+                                        .textFieldStyle(.plain)
+                                        .padding(6)
+                                        .background(Color(NSColor.controlBackgroundColor))
+                                        .cornerRadius(4)
+                                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                                    Button("Add") {
+                                        let t = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !t.isEmpty {
+                                            let g = manager.createTaskGroup(
+                                                name: t,
+                                                projectRef: project.id,
+                                                tagRefs: Array(selectedGroupTagIdsForNewGroup)
+                                            )
+                                            selectedGroupId = g.id
+                                            newGroupName = ""
+                                            selectedGroupTagIdsForNewGroup = []
+                                            showNewGroup = false
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                    Button("Cancel") {
+                                        showNewGroup = false
+                                        newGroupName = ""
+                                        selectedGroupTagIdsForNewGroup = []
+                                        showNewGroupTagFieldForNewGroup = false
+                                        newGroupTagNameForNewGroup = ""
+                                    }
+                                    .buttonStyle(.plain).font(.caption).foregroundColor(.secondary)
+                                }
+                                
+                                // Group Tags inside inline creator
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("New Group Tags").font(.system(size: 10)).foregroundColor(.secondary)
+                                    if !manager.groupTags.isEmpty {
+                                        FlowLayout(spacing: 4) {
+                                            ForEach(manager.groupTags) { tag in
+                                                TagChip(
+                                                    tag: tag,
+                                                    isSelected: selectedGroupTagIdsForNewGroup.contains(tag.id),
+                                                    isCheckable: true
+                                                ) {
+                                                    if selectedGroupTagIdsForNewGroup.contains(tag.id) {
+                                                        selectedGroupTagIdsForNewGroup.remove(tag.id)
+                                                    } else {
+                                                        selectedGroupTagIdsForNewGroup.insert(tag.id)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if showNewGroupTagFieldForNewGroup {
+                                        HStack {
+                                            TextField("Tag name", text: $newGroupTagNameForNewGroup)
+                                                .textFieldStyle(.plain)
+                                                .padding(4)
+                                                .background(Color(NSColor.controlBackgroundColor))
+                                                .cornerRadius(4)
+                                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                                            
+                                            HStack(spacing: 3) {
+                                                ForEach(Tag.defaultColors.prefix(5), id: \.self) { hex in
+                                                    Circle().fill(Color(hex: hex)).frame(width: 12, height: 12)
+                                                        .overlay(Circle().stroke(Color.primary, lineWidth: selectedGroupTagColorHexForNewGroup == hex ? 1.5 : 0))
+                                                        .onTapGesture { selectedGroupTagColorHexForNewGroup = hex }
+                                                }
+                                            }
+                                            
+                                            Button("Create") {
+                                                let trimmed = newGroupTagNameForNewGroup.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                if !trimmed.isEmpty {
+                                                    let tag = manager.createGroupTag(name: trimmed, colorHex: selectedGroupTagColorHexForNewGroup)
+                                                    selectedGroupTagIdsForNewGroup.insert(tag.id)
+                                                    newGroupTagNameForNewGroup = ""
+                                                    showNewGroupTagFieldForNewGroup = false
+                                                }
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .controlSize(.small)
+                                            .disabled(newGroupTagNameForNewGroup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                            
+                                            Button("X") {
+                                                showNewGroupTagFieldForNewGroup = false
+                                                newGroupTagNameForNewGroup = ""
+                                            }
+                                            .buttonStyle(.plain).font(.caption).foregroundColor(.secondary)
+                                        }
+                                    } else {
+                                        Button(action: { showNewGroupTagFieldForNewGroup = true }) {
+                                            HStack(spacing: 2) {
+                                                Image(systemName: "plus.circle")
+                                                Text("New Tag")
+                                            }
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.accentColor)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
                                 .padding(6)
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(4)
-                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
-                            Button("Add") {
-                                let t = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !t.isEmpty {
-                                    let g = manager.createTaskGroup(name: t, projectRef: project.id)
-                                    selectedGroupId = g.id
-                                    newGroupName = ""
-                                    showNewGroup = false
+                                .background(Color.secondary.opacity(0.04))
+                                .cornerRadius(6)
+                            }
+                        } else {
+                            Button(action: { showNewGroup = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                    Text("New Group")
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    
+                    // Tags Section
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Session Tags").font(.caption).foregroundColor(.secondary)
+                        
+                        if !manager.tags.isEmpty {
+                            FlowLayout(spacing: 6) {
+                                ForEach(manager.tags) { tag in
+                                    TagChip(
+                                        tag: tag,
+                                        isSelected: selectedTagIds.contains(tag.id),
+                                        isCheckable: true
+                                    ) {
+                                        if selectedTagIds.contains(tag.id) {
+                                            selectedTagIds.remove(tag.id)
+                                        } else {
+                                            selectedTagIds.insert(tag.id)
+                                        }
+                                    }
                                 }
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            Button("Cancel") { showNewGroup = false; newGroupName = "" }
-                                .buttonStyle(.plain).font(.caption).foregroundColor(.secondary)
                         }
-                    } else {
-                        Button(action: { showNewGroup = true }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "plus.circle")
-                                Text("New Group")
+                        
+                        if showNewTagField {
+                            HStack {
+                                TextField("Tag name", text: $newTagName)
+                                    .textFieldStyle(.plain)
+                                    .padding(6)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(4)
+                                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                                
+                                HStack(spacing: 4) {
+                                    ForEach(Tag.defaultColors.prefix(5), id: \.self) { hex in
+                                        Circle().fill(Color(hex: hex)).frame(width: 14, height: 14)
+                                            .overlay(Circle().stroke(Color.primary, lineWidth: selectedTagColorHex == hex ? 1.5 : 0))
+                                            .onTapGesture { selectedTagColorHex = hex }
+                                    }
+                                }
+                                
+                                Button("Add") {
+                                    let t = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !t.isEmpty {
+                                        let tag = manager.createTag(name: t, colorHex: selectedTagColorHex)
+                                        selectedTagIds.insert(tag.id)
+                                        newTagName = ""
+                                        showNewTagField = false
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                
+                                Button("Cancel") { showNewTagField = false; newTagName = "" }
+                                    .buttonStyle(.plain).font(.caption).foregroundColor(.secondary)
                             }
-                            .font(.footnote)
-                            .foregroundColor(.accentColor)
+                        } else {
+                            Button(action: { showNewTagField = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                    Text("New Tag")
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
+            .frame(maxHeight: 320)
             
             HStack {
                 Button("Cancel") { dismiss() }.buttonStyle(.bordered)
@@ -742,7 +1161,8 @@ struct ProjectPlanSessionSheet: View {
                         title: title.isEmpty ? "Planned Work Block" : title,
                         duration: dur,
                         projectId: project.id,
-                        taskGroupId: selectedGroupId
+                        taskGroupId: selectedGroupId,
+                        tagIds: Array(selectedTagIds)
                     )
                     dismiss()
                 }
@@ -751,7 +1171,7 @@ struct ProjectPlanSessionSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 380)
+        .frame(width: 400)
         .onAppear { selectedGroupId = taskGroupId }
     }
 }

@@ -55,6 +55,7 @@ struct Session: Identifiable, Codable, Hashable {
     var status: SessionStatus
     var voiceNoteUrl: String?
     var taskGroupRef: UUID? = nil
+    var tagRefs: [UUID]? = nil
     
     // Compatibility-safe fields for chronological timeline tracking
     var wasPlanned: Bool? = false
@@ -70,6 +71,19 @@ struct TaskGroup: Identifiable, Codable, Hashable {
     var name: String
     var projectRef: UUID
     var createdAt: Date = Date()
+    var tagRefs: [UUID]? = nil
+}
+
+struct Tag: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var name: String
+    var colorHex: String
+    var createdAt: Date = Date()
+    
+    static let defaultColors = [
+        "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
+        "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9"
+    ]
 }
 
 enum AppView {
@@ -91,6 +105,8 @@ class SessionFlowManager {
     var sessions: [Session] = []
     var projects: [Project] = []
     var taskGroups: [TaskGroup] = []
+    var tags: [Tag] = []
+    var groupTags: [Tag] = []
     
     // UI Navigation State
     var currentView: AppView = .timer
@@ -351,7 +367,7 @@ class SessionFlowManager {
     
     // MARK: - Data Management & Persistence
     
-    func saveSession(title: String, notes: String, projectId: UUID?, taskGroupId: UUID? = nil, duration: TimeInterval) {
+    func saveSession(title: String, notes: String, projectId: UUID?, taskGroupId: UUID? = nil, tagIds: [UUID] = [], duration: TimeInterval) {
         let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Session" : title
         
         if let activeId = activeSessionId, let index = sessions.firstIndex(where: { $0.id == activeId }) {
@@ -360,6 +376,7 @@ class SessionFlowManager {
             sessions[index].notes = notes
             sessions[index].projectRef = projectId
             sessions[index].taskGroupRef = taskGroupId
+            sessions[index].tagRefs = tagIds
             sessions[index].duration = duration
             sessions[index].date = Date()
             sessions[index].status = .completed
@@ -376,7 +393,8 @@ class SessionFlowManager {
                 notes: notes,
                 projectRef: projectId,
                 status: .completed,
-                taskGroupRef: taskGroupId
+                taskGroupRef: taskGroupId,
+                tagRefs: tagIds
             )
             sessions.insert(newSession, at: 0)
         }
@@ -389,7 +407,7 @@ class SessionFlowManager {
         timeElapsed = 0
     }
     
-    func planSession(title: String, duration: TimeInterval, projectId: UUID?, taskGroupId: UUID? = nil) {
+    func planSession(title: String, duration: TimeInterval, projectId: UUID?, taskGroupId: UUID? = nil, tagIds: [UUID] = []) {
         let plannedSession = Session(
             title: title.isEmpty ? "Planned Work Block" : title,
             duration: duration,
@@ -398,6 +416,7 @@ class SessionFlowManager {
             projectRef: projectId,
             status: .planned,
             taskGroupRef: taskGroupId,
+            tagRefs: tagIds,
             wasPlanned: true,
             datePlanned: Date()
         )
@@ -431,8 +450,8 @@ class SessionFlowManager {
         saveData()
     }
     
-    func createTaskGroup(name: String, projectRef: UUID) -> TaskGroup {
-        let group = TaskGroup(name: name, projectRef: projectRef)
+    func createTaskGroup(name: String, projectRef: UUID, tagRefs: [UUID] = []) -> TaskGroup {
+        let group = TaskGroup(name: name, projectRef: projectRef, tagRefs: tagRefs)
         taskGroups.append(group)
         saveData()
         return group
@@ -456,6 +475,50 @@ class SessionFlowManager {
         }
     }
     
+    func updateSessionTags(id: UUID, tagIds: [UUID]) {
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[index].tagRefs = tagIds
+            saveData()
+        }
+    }
+    
+    func createTag(name: String, colorHex: String) -> Tag {
+        let tag = Tag(name: name, colorHex: colorHex)
+        tags.append(tag)
+        saveData()
+        return tag
+    }
+    
+    func deleteTag(id: UUID) {
+        tags.removeAll { $0.id == id }
+        for i in 0..<sessions.count {
+            sessions[i].tagRefs = sessions[i].tagRefs?.filter { $0 != id }
+        }
+        saveData()
+    }
+    
+    func createGroupTag(name: String, colorHex: String) -> Tag {
+        let tag = Tag(name: name, colorHex: colorHex)
+        groupTags.append(tag)
+        saveData()
+        return tag
+    }
+    
+    func deleteGroupTag(id: UUID) {
+        groupTags.removeAll { $0.id == id }
+        for i in 0..<taskGroups.count {
+            taskGroups[i].tagRefs = taskGroups[i].tagRefs?.filter { $0 != id }
+        }
+        saveData()
+    }
+    
+    func updateGroupTags(id: UUID, tagIds: [UUID]) {
+        if let index = taskGroups.firstIndex(where: { $0.id == id }) {
+            taskGroups[index].tagRefs = tagIds
+            saveData()
+        }
+    }
+    
     private func loadData() {
         let defaults = UserDefaults.standard
         if let sessionsData = defaults.data(forKey: "SF_Sessions"),
@@ -470,6 +533,14 @@ class SessionFlowManager {
            let decoded = try? JSONDecoder().decode([TaskGroup].self, from: groupsData) {
             self.taskGroups = decoded
         }
+        if let tagsData = defaults.data(forKey: "SF_Tags"),
+           let decoded = try? JSONDecoder().decode([Tag].self, from: tagsData) {
+            self.tags = decoded
+        }
+        if let groupTagsData = defaults.data(forKey: "SF_GroupTags"),
+           let decoded = try? JSONDecoder().decode([Tag].self, from: groupTagsData) {
+            self.groupTags = decoded
+        }
     }
     
     private func saveData() {
@@ -482,6 +553,12 @@ class SessionFlowManager {
         }
         if let encoded = try? JSONEncoder().encode(taskGroups) {
             defaults.set(encoded, forKey: "SF_TaskGroups")
+        }
+        if let encoded = try? JSONEncoder().encode(tags) {
+            defaults.set(encoded, forKey: "SF_Tags")
+        }
+        if let encoded = try? JSONEncoder().encode(groupTags) {
+            defaults.set(encoded, forKey: "SF_GroupTags")
         }
     }
 }
