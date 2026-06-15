@@ -15,7 +15,9 @@ struct ContentView: View {
     @State private var isResetHovered = false
     @State private var isCompactHovered = false
     @State private var isWorkspaceHovered = false
+    @State private var isNotesHovered = false
     @State private var isHoveringCompact = false
+    @State private var showNotesPopover = false
     
     @State private var appWindow: NSWindow? = nil
     @State private var resizeWorkItem: DispatchWorkItem? = nil
@@ -179,6 +181,41 @@ struct ContentView: View {
                             .buttonStyle(.plain)
                             .onHover { isResetHovered = $0 }
                             .scaleEffect(isResetHovered ? 1.1 : 1.0)
+                            
+                            // Notes Action
+                            Button(action: {
+                                showNotesPopover.toggle()
+                            }) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .black : .accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { isNotesHovered = $0 }
+                            .scaleEffect(isNotesHovered ? 1.1 : 1.0)
+                            .popover(isPresented: $showNotesPopover, arrowEdge: .bottom) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Active Notes")
+                                            .font(.headline)
+                                        Spacer()
+                                        Button("Done") {
+                                            showNotesPopover = false
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(.accentColor)
+                                    }
+                                    TextEditor(text: $manager.activeNotes)
+                                        .font(.system(size: 12))
+                                        .scrollContentBackground(.hidden)
+                                        .padding(6)
+                                        .background(Color(NSColor.textBackgroundColor))
+                                        .cornerRadius(6)
+                                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
+                                }
+                                .padding()
+                                .frame(width: 230, height: 160)
+                            }
                             
                             // Compact Mode Toggle Button
                             Button(action: {

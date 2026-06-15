@@ -542,6 +542,9 @@ struct SessionRow: View {
     @State private var newTagNameInEditor: String = ""
     @State private var newTagColorInEditor: String = Tag.defaultColors.first ?? "#FF6B6B"
     
+    @State private var isEditingNotes: Bool = false
+    @State private var editedNotes: String = ""
+    
     private var hasNotes: Bool {
         !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -796,6 +799,33 @@ struct SessionRow: View {
                     .frame(width: 240)
                 }
                 
+                // Edit notes
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        if !isNotesExpanded {
+                            isNotesExpanded = true
+                            isEditingNotes = true
+                            editedNotes = session.notes
+                        } else {
+                            if isEditingNotes {
+                                isEditingNotes = false
+                                if session.notes.isEmpty {
+                                    isNotesExpanded = false
+                                }
+                            } else {
+                                isEditingNotes = true
+                                editedNotes = session.notes
+                            }
+                        }
+                    }
+                }) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 11))
+                        .foregroundColor(isEditingNotes ? .accentColor : .secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .help(session.notes.isEmpty ? "Add notes" : "Edit notes")
+                
                 // Delete
                 Button(action: {
                     withAnimation { manager.deleteSession(id: session.id) }
@@ -810,7 +840,7 @@ struct SessionRow: View {
             .padding(.vertical, 9)
             
             // Expandable notes
-            if isNotesExpanded && hasNotes {
+            if isNotesExpanded {
                 VStack(alignment: .leading, spacing: 6) {
                     Divider().padding(.horizontal, 8)
                     
@@ -818,20 +848,85 @@ struct SessionRow: View {
                         Image(systemName: "text.quote")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(.accentColor.opacity(0.7))
-                        Text("NOTES")
+                        Text(isEditingNotes ? "EDITING NOTES" : "NOTES")
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                             .foregroundColor(.secondary)
                             .tracking(0.5)
+                        
+                        Spacer()
+                        
+                        if !isEditingNotes {
+                            Button(action: {
+                                withAnimation {
+                                    isEditingNotes = true
+                                    editedNotes = session.notes
+                                }
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 8))
+                                    Text("Edit")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal, 12)
                     
-                    Text(session.notes)
-                        .font(.system(size: 12.5))
-                        .foregroundColor(.primary.opacity(0.85))
-                        .lineSpacing(3)
-                        .textSelection(.enabled)
+                    if isEditingNotes {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            TextEditor(text: $editedNotes)
+                                .font(.system(size: 12.5))
+                                .foregroundColor(.primary)
+                                .lineSpacing(3)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 60, maxHeight: 120)
+                                .padding(6)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                                )
+                            
+                            HStack(spacing: 8) {
+                                Button("Cancel") {
+                                    withAnimation {
+                                        isEditingNotes = false
+                                        if session.notes.isEmpty {
+                                            isNotesExpanded = false
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                
+                                Button("Save") {
+                                    manager.updateSessionNotes(id: session.id, notes: editedNotes)
+                                    withAnimation {
+                                        isEditingNotes = false
+                                        if editedNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            isNotesExpanded = false
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                        }
                         .padding(.horizontal, 12)
-                        .padding(.bottom, 4)
+                        .padding(.bottom, 6)
+                    } else {
+                        Text(session.notes)
+                            .font(.system(size: 12.5))
+                            .foregroundColor(.primary.opacity(0.85))
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 4)
+                    }
                 }
                 .padding(.bottom, 6)
                 .transition(
@@ -844,7 +939,7 @@ struct SessionRow: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(isHovered && hasNotes ? 0.7 : 0.45))
+                .fill(Color(NSColor.controlBackgroundColor).opacity(isHovered && (hasNotes || isEditingNotes) ? 0.7 : 0.45))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -858,13 +953,14 @@ struct SessionRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard hasNotes else { return }
+            guard !isEditingNotes else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 isNotesExpanded.toggle()
             }
         }
         .onHover { h in
             withAnimation(.easeInOut(duration: 0.12)) { isHovered = h }
-            if h && hasNotes { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            if h && (hasNotes || isEditingNotes) { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
     }
     

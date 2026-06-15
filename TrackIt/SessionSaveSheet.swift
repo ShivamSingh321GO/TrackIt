@@ -533,6 +533,7 @@ struct SessionSaveSheet: View {
                         tagIds: Array(selectedTagIds),
                         duration: duration
                     )
+                    manager.activeNotes = ""
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
@@ -551,6 +552,8 @@ struct SessionSaveSheet: View {
                 selectedTaskGroupId = activeSession.taskGroupRef
                 notes = activeSession.notes
                 selectedTagIds = Set(activeSession.tagRefs ?? [])
+            } else {
+                notes = manager.activeNotes
             }
         }
     }

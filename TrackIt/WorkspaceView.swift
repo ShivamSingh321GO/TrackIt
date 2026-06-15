@@ -12,6 +12,9 @@ struct WorkspaceView: View {
     
     @State private var workspaceTab: WorkspaceTab = .dashboard
     @State private var searchText: String = ""
+    @State private var searchMode: SearchMode = .sessions
+    @State private var selectedFilterTagIds: Set<UUID> = []
+    @State private var selectedFilterGroupTagIds: Set<UUID> = []
     @State private var selectedProject: Project? = nil
     
     // Inline creation for planned session
@@ -35,6 +38,11 @@ struct WorkspaceView: View {
         case search
         case projects
         case reports
+    }
+    
+    enum SearchMode {
+        case sessions
+        case groups
     }
     
     var body: some View {
@@ -224,119 +232,262 @@ struct WorkspaceView: View {
     // MARK: - Search & Insights Tab
     private var searchTab: some View {
         VStack(spacing: 0) {
-            // Search Input Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search sessions, notes, projects, tags (e.g., 'database')", text: $searchText)
+            // Search Controls Header
+            VStack(spacing: 14) {
+                // Search Mode Selector
+                Picker("Search Mode", selection: $searchMode) {
+                    Label("Sessions", systemImage: "clock").tag(SearchMode.sessions)
+                    Label("Groups", systemImage: "folder").tag(SearchMode.groups)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+                .onChange(of: searchMode) { _, _ in
+                    selectedFilterTagIds = []
+                    selectedFilterGroupTagIds = []
+                }
+                
+                // Search Input Bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    TextField(
+                        searchMode == .sessions
+                            ? "Search sessions by title, notes, project..."
+                            : "Search groups by name, project...",
+                        text: $searchText
+                    )
                     .textFieldStyle(.plain)
                     .font(.body)
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+                
+                // Tag Filters for Sessions
+                if searchMode == .sessions && !manager.tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Filter by Tags")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
+                            if !selectedFilterTagIds.isEmpty {
+                                Button(action: { selectedFilterTagIds = [] }) {
+                                    Text("Clear")
+                                        .font(.caption2)
+                                        .foregroundColor(.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        FlowLayout(spacing: 6) {
+                            ForEach(manager.tags) { tag in
+                                TagChip(
+                                    tag: tag,
+                                    isSelected: selectedFilterTagIds.contains(tag.id),
+                                    isCheckable: true
+                                ) {
+                                    if selectedFilterTagIds.contains(tag.id) {
+                                        selectedFilterTagIds.remove(tag.id)
+                                    } else {
+                                        selectedFilterTagIds.insert(tag.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Tag Filters for Groups
+                if searchMode == .groups && !manager.groupTags.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Filter by Group Tags")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
+                            if !selectedFilterGroupTagIds.isEmpty {
+                                Button(action: { selectedFilterGroupTagIds = [] }) {
+                                    Text("Clear")
+                                        .font(.caption2)
+                                        .foregroundColor(.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        FlowLayout(spacing: 6) {
+                            ForEach(manager.groupTags) { tag in
+                                TagChip(
+                                    tag: tag,
+                                    isSelected: selectedFilterGroupTagIds.contains(tag.id),
+                                    isCheckable: true
+                                ) {
+                                    if selectedFilterGroupTagIds.contains(tag.id) {
+                                        selectedFilterGroupTagIds.remove(tag.id)
+                                    } else {
+                                        selectedFilterGroupTagIds.insert(tag.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(12)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
             .padding(24)
             
             Divider()
             
-            // Search Results & Historical Insights
-            let results = searchSessions()
+            // Results Area
+            let hasActiveSearch = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || (searchMode == .sessions && !selectedFilterTagIds.isEmpty)
+                || (searchMode == .groups && !selectedFilterGroupTagIds.isEmpty)
             
-            if searchText.isEmpty {
+            if !hasActiveSearch {
                 VStack(spacing: 12) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 32))
                         .foregroundColor(.accentColor.opacity(0.7))
                     Text("Search & Insights")
                         .font(.headline)
-                    Text("Type a keyword like 'database' or 'auth' to view aggregated analytics and matching sessions.")
+                    Text(searchMode == .sessions
+                         ? "Search sessions by keyword or filter by tags to view duration analytics."
+                         : "Search task groups by keyword or filter by group tags.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 320)
+                        .frame(maxWidth: 340)
                 }
                 .frame(maxHeight: .infinity)
+            } else if searchMode == .sessions {
+                sessionSearchResults
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Historical Insights Panel (if results found)
-                        if !results.isEmpty {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text("Historical Insights")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                
-                                let totalSecs = results.reduce(0.0) { $0 + $1.duration }
-                                let avgSecs = totalSecs / Double(results.count)
-                                let uniqueProjCount = Set(results.compactMap { $0.projectRef }).count
-                                
-                                HStack(spacing: 16) {
-                                    InsightCard(title: "Sessions Found", value: "\(results.count)", icon: "doc.text")
-                                    InsightCard(title: "Total Time Spent", value: formatHoursMins(totalSecs), icon: "clock")
-                                    InsightCard(title: "Avg. Session Duration", value: formatHoursMins(avgSecs), icon: "hourglass")
-                                    InsightCard(title: "Impacted Projects", value: "\(uniqueProjCount)", icon: "folder")
-                                }
-                            }
-                            .padding(16)
-                            .background(Color.accentColor.opacity(0.05))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.accentColor.opacity(0.15), lineWidth: 1)
-                            )
-                        }
-                        
-                        // Result Sessions List
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Matching Sessions (\(results.count))")
+                groupSearchResults
+            }
+        }
+    }
+    
+    // MARK: - Session Search Results
+    private var sessionSearchResults: some View {
+        ScrollView {
+            let results = searchSessions()
+            let completed = results.filter { $0.status == .completed }
+            
+            VStack(alignment: .leading, spacing: 20) {
+                // Duration Stats Panel
+                if !completed.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chart.bar.fill")
+                                .foregroundColor(.accentColor)
+                            Text("Session Duration Stats")
                                 .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            if results.isEmpty {
-                                Text("No matching sessions found.")
-                                    .foregroundColor(.secondary)
-                                    .italic()
-                            } else {
-                                VStack(spacing: 10) {
-                                    ForEach(results) { session in
-                                        CompletedSessionRow(session: session, manager: manager)
-                                    }
-                                }
-                            }
+                            Text("\(completed.count) completed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(4)
                         }
                         
-                        // Matching Groups List
-                        let matchedGroups = searchGroups()
-                        if !matchedGroups.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Matching Task Groups (\(matchedGroups.count))")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                
-                                VStack(spacing: 10) {
-                                    ForEach(matchedGroups) { group in
-                                        MatchingGroupRow(group: group, manager: manager, onSelect: {
-                                            if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
-                                                selectedProject = proj
-                                                workspaceTab = .projects
-                                            }
-                                        })
-                                    }
-                                }
-                            }
-                            .padding(.top, 10)
+                        let durations = completed.map { $0.duration }
+                        let longest = durations.max() ?? 0
+                        let shortest = durations.min() ?? 0
+                        let average = durations.reduce(0, +) / Double(durations.count)
+                        let total = durations.reduce(0, +)
+                        
+                        HStack(spacing: 14) {
+                            StatCard(title: "Longest", value: formatHoursMins(longest), icon: "arrow.up.circle.fill", color: .orange)
+                            StatCard(title: "Shortest", value: formatHoursMins(shortest), icon: "arrow.down.circle.fill", color: .green)
+                            StatCard(title: "Average", value: formatHoursMins(average), icon: "equal.circle.fill", color: .accentColor)
+                            StatCard(title: "Total Time", value: formatHoursMins(total), icon: "clock.fill", color: .purple)
                         }
                     }
-                    .padding(24)
+                    .padding(16)
+                    .background(Color.accentColor.opacity(0.05))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.accentColor.opacity(0.15), lineWidth: 1)
+                    )
+                }
+                
+                // Matching Sessions List
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Matching Sessions (\(results.count))")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    if results.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 24))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            Text("No matching sessions found.")
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(results) { session in
+                                CompletedSessionRow(session: session, manager: manager)
+                            }
+                        }
+                    }
                 }
             }
+            .padding(24)
+        }
+    }
+    
+    // MARK: - Group Search Results
+    private var groupSearchResults: some View {
+        ScrollView {
+            let results = searchGroups()
+            
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Matching Groups (\(results.count))")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    if results.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "folder.badge.questionmark")
+                                .font(.system(size: 24))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            Text("No matching groups found.")
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(results) { group in
+                                MatchingGroupRow(group: group, manager: manager, onSelect: {
+                                    if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
+                                        selectedProject = proj
+                                        workspaceTab = .projects
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(24)
         }
     }
     
@@ -478,78 +629,105 @@ struct WorkspaceView: View {
     
     private func searchSessions() -> [Session] {
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if keyword.isEmpty { return [] }
         
-        return manager.sessions.filter { session in
-            let titleMatch = session.title.lowercased().contains(keyword)
-            let notesMatch = session.notes.lowercased().contains(keyword)
-            
-            var projectMatch = false
-            if let projId = session.projectRef,
-               let proj = manager.projects.first(where: { $0.id == projId }) {
-                projectMatch = proj.name.lowercased().contains(keyword)
-            }
-            
-            // Session Tags Match
-            var tagMatch = false
-            let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
-                manager.tags.first { $0.id == tagId }
-            }
-            for tag in sessionTags {
-                if tag.name.lowercased().contains(keyword) {
-                    tagMatch = true
-                    break
-                }
-            }
-            
-            // Task Group Match
-            var groupMatch = false
-            var groupTagMatch = false
-            if let groupId = session.taskGroupRef,
-               let group = manager.taskGroups.first(where: { $0.id == groupId }) {
-                groupMatch = group.name.lowercased().contains(keyword)
+        var results = manager.sessions
+        
+        // Filter by keyword if provided
+        if !keyword.isEmpty {
+            results = results.filter { session in
+                let titleMatch = session.title.lowercased().contains(keyword)
+                let notesMatch = session.notes.lowercased().contains(keyword)
                 
-                // Task Group Tags Match
+                var projectMatch = false
+                if let projId = session.projectRef,
+                   let proj = manager.projects.first(where: { $0.id == projId }) {
+                    projectMatch = proj.name.lowercased().contains(keyword)
+                }
+                
+                // Session Tags Match
+                var tagMatch = false
+                let sessionTags = (session.tagRefs ?? []).compactMap { tagId in
+                    manager.tags.first { $0.id == tagId }
+                }
+                for tag in sessionTags {
+                    if tag.name.lowercased().contains(keyword) {
+                        tagMatch = true
+                        break
+                    }
+                }
+                
+                // Task Group Match
+                var groupMatch = false
+                var groupTagMatch = false
+                if let groupId = session.taskGroupRef,
+                   let group = manager.taskGroups.first(where: { $0.id == groupId }) {
+                    groupMatch = group.name.lowercased().contains(keyword)
+                    
+                    let groupTags = (group.tagRefs ?? []).compactMap { tagId in
+                        manager.groupTags.first { $0.id == tagId }
+                    }
+                    for tag in groupTags {
+                        if tag.name.lowercased().contains(keyword) {
+                            groupTagMatch = true
+                            break
+                        }
+                    }
+                }
+                
+                return titleMatch || notesMatch || projectMatch || tagMatch || groupMatch || groupTagMatch
+            }
+        }
+        
+        // Filter by selected tags (OR: session must have at least one selected tag)
+        if !selectedFilterTagIds.isEmpty {
+            results = results.filter { session in
+                let sessionTagIds = Set(session.tagRefs ?? [])
+                return !selectedFilterTagIds.isDisjoint(with: sessionTagIds)
+            }
+        }
+        
+        return results
+    }
+    
+    private func searchGroups() -> [TaskGroup] {
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        var results = manager.taskGroups
+        
+        // Filter by keyword if provided
+        if !keyword.isEmpty {
+            results = results.filter { group in
+                let nameMatch = group.name.lowercased().contains(keyword)
+                
+                var projectMatch = false
+                if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
+                    projectMatch = proj.name.lowercased().contains(keyword)
+                }
+                
+                var tagMatch = false
                 let groupTags = (group.tagRefs ?? []).compactMap { tagId in
                     manager.groupTags.first { $0.id == tagId }
                 }
                 for tag in groupTags {
                     if tag.name.lowercased().contains(keyword) {
-                        groupTagMatch = true
+                        tagMatch = true
                         break
                     }
                 }
+                
+                return nameMatch || projectMatch || tagMatch
             }
-            
-            return titleMatch || notesMatch || projectMatch || tagMatch || groupMatch || groupTagMatch
         }
-    }
-    
-    private func searchGroups() -> [TaskGroup] {
-        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if keyword.isEmpty { return [] }
         
-        return manager.taskGroups.filter { group in
-            let nameMatch = group.name.lowercased().contains(keyword)
-            
-            var projectMatch = false
-            if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
-                projectMatch = proj.name.lowercased().contains(keyword)
+        // Filter by selected group tags (OR: group must have at least one selected tag)
+        if !selectedFilterGroupTagIds.isEmpty {
+            results = results.filter { group in
+                let groupTagIds = Set(group.tagRefs ?? [])
+                return !selectedFilterGroupTagIds.isDisjoint(with: groupTagIds)
             }
-            
-            var tagMatch = false
-            let groupTags = (group.tagRefs ?? []).compactMap { tagId in
-                manager.groupTags.first { $0.id == tagId }
-            }
-            for tag in groupTags {
-                if tag.name.lowercased().contains(keyword) {
-                    tagMatch = true
-                    break
-                }
-            }
-            
-            return nameMatch || projectMatch || tagMatch
         }
+        
+        return results
     }
     
     private func getProjectTimeBreakdown() -> [(name: String, colorHex: String, duration: TimeInterval)] {
@@ -998,6 +1176,8 @@ struct CompletedSessionRow: View {
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false
+    @State private var isEditingNotes: Bool = false
+    @State private var editedNotes: String = ""
     
     private var hasNotes: Bool {
         !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1025,6 +1205,34 @@ struct CompletedSessionRow: View {
                     Text(formatDuration(session.duration))
                         .font(.system(.body, design: .monospaced))
                         .bold()
+                    
+                    // Add/Edit notes button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if !isNotesExpanded {
+                                isNotesExpanded = true
+                                isEditingNotes = true
+                                editedNotes = session.notes
+                            } else {
+                                if isEditingNotes {
+                                    isEditingNotes = false
+                                    if session.notes.isEmpty {
+                                        isNotesExpanded = false
+                                    }
+                                } else {
+                                    isEditingNotes = true
+                                    editedNotes = session.notes
+                                }
+                            }
+                        }
+                    }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.footnote)
+                            .foregroundColor(isEditingNotes ? .accentColor : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
+                    .help(session.notes.isEmpty ? "Add notes" : "Edit notes")
                     
                     Button(action: {
                         withAnimation {
@@ -1078,7 +1286,7 @@ struct CompletedSessionRow: View {
             .padding(12)
             
             // Expandable Notes Panel
-            if isNotesExpanded && hasNotes {
+            if isNotesExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
                         .padding(.horizontal, 8)
@@ -1088,21 +1296,86 @@ struct CompletedSessionRow: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.accentColor.opacity(0.7))
                         
-                        Text("SESSION NOTES")
+                        Text(isEditingNotes ? "EDITING NOTES" : "SESSION NOTES")
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                             .foregroundColor(.secondary)
                             .tracking(0.5)
+                        
+                        Spacer()
+                        
+                        if !isEditingNotes {
+                            Button(action: {
+                                withAnimation {
+                                    isEditingNotes = true
+                                    editedNotes = session.notes
+                                }
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 8))
+                                    Text("Edit")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal, 12)
                     
-                    Text(session.notes)
-                        .font(.system(size: 12.5))
-                        .foregroundColor(.primary.opacity(0.85))
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if isEditingNotes {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            TextEditor(text: $editedNotes)
+                                .font(.system(size: 12.5))
+                                .foregroundColor(.primary)
+                                .lineSpacing(4)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 60, maxHeight: 120)
+                                .padding(6)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                                )
+                            
+                            HStack(spacing: 8) {
+                                Button("Cancel") {
+                                    withAnimation {
+                                        isEditingNotes = false
+                                        if session.notes.isEmpty {
+                                            isNotesExpanded = false
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                
+                                Button("Save") {
+                                    manager.updateSessionNotes(id: session.id, notes: editedNotes)
+                                    withAnimation {
+                                        isEditingNotes = false
+                                        if editedNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            isNotesExpanded = false
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                        }
                         .padding(.horizontal, 12)
                         .padding(.bottom, 6)
+                    } else {
+                        Text(session.notes)
+                            .font(.system(size: 12.5))
+                            .foregroundColor(.primary.opacity(0.85))
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 6)
+                    }
                 }
                 .padding(.bottom, 6)
                 .transition(
@@ -1117,7 +1390,7 @@ struct CompletedSessionRow: View {
                 )
             }
         }
-        .background(Color(NSColor.controlBackgroundColor).opacity(isHovered && hasNotes ? 0.8 : 0.6))
+        .background(Color(NSColor.controlBackgroundColor).opacity(isHovered && (hasNotes || isEditingNotes) ? 0.8 : 0.6))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -1129,6 +1402,7 @@ struct CompletedSessionRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard hasNotes else { return }
+            guard !isEditingNotes else { return }
             withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
                 isNotesExpanded.toggle()
             }
@@ -1137,7 +1411,7 @@ struct CompletedSessionRow: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
             }
-            if hovering && hasNotes {
+            if hovering && (hasNotes || isEditingNotes) {
                 NSCursor.pointingHand.push()
             } else {
                 NSCursor.pop()
@@ -1289,6 +1563,39 @@ struct InsightCard: View {
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
+    }
+}
+
+struct StatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    var color: Color = .accentColor
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+            }
+            Text(value)
+                .font(.system(.title2, design: .monospaced))
+                .bold()
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 

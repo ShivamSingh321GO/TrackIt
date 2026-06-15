@@ -114,6 +114,7 @@ class SessionFlowManager {
     var timerTypeString: String = "Stopwatch" // "Countdown" or "Stopwatch"
     var isCompactMode: Bool = false
     var activeSessionId: UUID? = nil
+    var activeNotes: String = ""
     
     // Private Timer Helpers
     private var timer: Timer? = nil
@@ -171,6 +172,7 @@ class SessionFlowManager {
             activeSessionId = nil
         }
         timerDuration = 0
+        activeNotes = ""
     }
     
     func startPlannedSession(_ session: Session) {
@@ -478,6 +480,13 @@ class SessionFlowManager {
     func updateSessionTags(id: UUID, tagIds: [UUID]) {
         if let index = sessions.firstIndex(where: { $0.id == id }) {
             sessions[index].tagRefs = tagIds
+            saveData()
+        }
+    }
+    
+    func updateSessionNotes(id: UUID, notes: String) {
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[index].notes = notes
             saveData()
         }
     }
