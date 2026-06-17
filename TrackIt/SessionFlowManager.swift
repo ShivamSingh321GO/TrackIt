@@ -7,6 +7,120 @@
 
 import SwiftUI
 import Combine
+import AppKit
+import UserNotifications
+
+class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+    
+    override init() {
+        super.init()
+    }
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // Show banner and play sound even in foreground
+        completionHandler([.banner, .sound])
+    }
+}
+
+class StatusItemTarget: NSObject {
+    static let shared = StatusItemTarget()
+    
+    weak var manager: SessionFlowManager? = nil
+    
+    @objc func showAppWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        for window in NSApp.windows {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+    
+    @objc func openSettings() {
+        guard let manager = manager else { return }
+        DispatchQueue.main.async {
+            SettingsWindowManager.shared.showSettings(manager: manager)
+        }
+    }
+    
+    @objc func openTutorial() {
+        guard let manager = manager else { return }
+        showAppWindow()
+        DispatchQueue.main.async {
+            manager.showTutorialSheet = true
+        }
+    }
+    
+    @objc func toggleTimer() {
+        guard let manager = manager else { return }
+        if manager.isRunning {
+            manager.pauseTimer()
+        } else {
+            manager.startTimer()
+        }
+    }
+    
+    @objc func resetTimer() {
+        guard let manager = manager else { return }
+        let duration = manager.timerDuration
+        manager.resetTimer()
+        manager.timerDuration = duration
+        manager.startTimer()
+    }
+    
+    @objc func resetAndPauseTimer() {
+        guard let manager = manager else { return }
+        let duration = manager.timerDuration
+        manager.resetTimer()
+        manager.timerDuration = duration
+    }
+}
+
+class SettingsWindowManager: NSObject, NSWindowDelegate {
+    static let shared = SettingsWindowManager()
+    private var window: NSWindow?
+    
+    func showSettings(manager: SessionFlowManager) {
+        if let window = window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let settingsView = SettingsSheet(manager: manager)
+        let hostingView = NSHostingView(rootView: settingsView)
+        
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "Settings"
+        newWindow.contentView = hostingView
+        newWindow.center()
+        newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
+        
+        self.window = newWindow
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func closeSettings() {
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.close()
+            self?.window = nil
+        }
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        self.window = nil
+    }
+}
+
+
 
 enum SessionStatus: String, Codable {
     case planned
@@ -116,12 +230,38 @@ class SessionFlowManager {
     var activeSessionId: UUID? = nil
     var activeNotes: String = ""
     
+    var showSettingsSheet: Bool = false
+    var showTutorialSheet: Bool = false
+    var completionSoundName: String = "Hero" {
+        didSet {
+            saveData()
+        }
+    }
+    var appTheme: String = "System" {
+        didSet {
+            saveData()
+        }
+    }
+    var keepTimerOnTop: Bool = false {
+        didSet {
+            saveData()
+        }
+    }
+    var showInMenuBar: Bool = true {
+        didSet {
+            saveData()
+            updateMenuBarVisibility()
+        }
+    }
+    
     // Private Timer Helpers
     private var timer: Timer? = nil
     private var startDate: Date? = nil
     private var accumulatedTime: TimeInterval = 0
+    private var statusItem: NSStatusItem? = nil
     
     init() {
+        _ = NSMenuItem.disableAutomaticMenuIcons
         loadData()
         // Seed initial projects if empty
         if projects.isEmpty {
@@ -132,6 +272,18 @@ class SessionFlowManager {
             ]
             saveData()
         }
+        
+        // Request Notification Permissions and Set Delegate
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Notification permission request error: \(error)")
+            }
+        }
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        
+        // Setup Status Bar Item
+        StatusItemTarget.shared.manager = self
+        updateMenuBarVisibility()
     }
     
     // MARK: - Timer Controls
@@ -143,6 +295,7 @@ class SessionFlowManager {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             self?.updateTimer()
         }
+        updateStatusItem()
     }
     
     func pauseTimer() {
@@ -153,6 +306,7 @@ class SessionFlowManager {
         }
         timer?.invalidate()
         timer = nil
+        updateStatusItem()
     }
     
     func resumeTimer() {
@@ -173,6 +327,7 @@ class SessionFlowManager {
         }
         timerDuration = 0
         activeNotes = ""
+        updateStatusItem()
     }
     
     func startPlannedSession(_ session: Session) {
@@ -206,6 +361,7 @@ class SessionFlowManager {
                 pauseTimer()
                 // Auto trigger save/completion when countdown finishes
                 showSaveSheet = true
+                triggerCompletionAlert()
             } else {
                 timeElapsed = currentElapsed
             }
@@ -213,6 +369,120 @@ class SessionFlowManager {
             // Count-up Mode
             timeElapsed = currentElapsed
         }
+        updateStatusItem()
+    }
+    
+    private func triggerCompletionAlert() {
+        // Play the native macOS sound
+        NSSound(named: self.completionSoundName)?.play()
+        
+        // Determine the title of the finished block
+        var sessionTitle = "Work Block"
+        if let activeId = activeSessionId,
+           let activeSession = sessions.first(where: { $0.id == activeId }) {
+            sessionTitle = activeSession.title
+        } else if !inputTimerText.isEmpty {
+            sessionTitle = inputTimerText
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Timer Completed"
+        content.body = "\"\(sessionTitle)\" has finished!"
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to schedule notification: \(error)")
+            }
+        }
+    }
+    
+    private func setupStatusItem() {
+        DispatchQueue.main.async {
+            self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = self.statusItem?.button {
+                button.title = "00:00:00"
+            }
+            self.updateStatusItem()
+        }
+    }
+    
+    func updateMenuBarVisibility() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if self.showInMenuBar {
+                if self.statusItem == nil {
+                    self.setupStatusItem()
+                } else {
+                    self.updateStatusItem()
+                }
+            } else {
+                if let item = self.statusItem {
+                    NSStatusBar.system.removeStatusItem(item)
+                    self.statusItem = nil
+                }
+            }
+        }
+    }
+    
+    func updateStatusItem() {
+        guard let statusItem = statusItem, let button = statusItem.button else { return }
+        let timeToDisplay = timeRemaining
+        let formatted = formatTime(timeToDisplay)
+        
+        DispatchQueue.main.async {
+            button.title = formatted
+            
+            // Rebuild the menu dynamically based on timer state
+            let menu = NSMenu()
+            
+            let showItem = NSMenuItem(title: "Show App", action: #selector(StatusItemTarget.showAppWindow), keyEquivalent: "")
+            showItem.target = StatusItemTarget.shared
+            menu.addItem(showItem)
+            
+            menu.addItem(NSMenuItem.separator())
+            
+            // Start/Pause Item
+            let startPauseTitle = self.isRunning ? "Pause" : "Start"
+            let startPauseItem = NSMenuItem(title: startPauseTitle, action: #selector(StatusItemTarget.toggleTimer), keyEquivalent: "")
+            startPauseItem.target = StatusItemTarget.shared
+            menu.addItem(startPauseItem)
+            
+            // Reset Item
+            let resetItem = NSMenuItem(title: "Reset", action: #selector(StatusItemTarget.resetTimer), keyEquivalent: "")
+            resetItem.target = StatusItemTarget.shared
+            menu.addItem(resetItem)
+            
+            // Reset and Pause Item
+            let resetPauseItem = NSMenuItem(title: "Reset and Pause", action: #selector(StatusItemTarget.resetAndPauseTimer), keyEquivalent: "")
+            resetPauseItem.target = StatusItemTarget.shared
+            menu.addItem(resetPauseItem)
+            
+            menu.addItem(NSMenuItem.separator())
+            let settingsItem = NSMenuItem(title: "Settings", action: #selector(StatusItemTarget.openSettings), keyEquivalent: ",")
+            settingsItem.target = StatusItemTarget.shared
+            menu.addItem(settingsItem)
+            
+            let tutorialItem = NSMenuItem(title: "Tutorial", action: #selector(StatusItemTarget.openTutorial), keyEquivalent: "?")
+            tutorialItem.target = StatusItemTarget.shared
+            menu.addItem(tutorialItem)
+            
+            menu.addItem(NSMenuItem.separator())
+            
+            let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.shared.terminate(_:)), keyEquivalent: "q")
+            menu.addItem(quitItem)
+            
+            statusItem.menu = menu
+        }
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hrs = Int(time) / 3600
+        let mins = (Int(time) % 3600) / 60
+        let secs = Int(time) % 60
+        return String(format: "%02d:%02d:%02d", hrs, mins, secs)
     }
     
     var timeRemaining: TimeInterval {
@@ -252,8 +522,10 @@ class SessionFlowManager {
                 }
             } else {
                 // Set duration
-                timerDuration = parsedSecs
+                let targetDuration = parsedSecs
                 resetTimer()
+                timerDuration = targetDuration
+                startTimer()
                 showFeedback("Timer set to \(formatFeedbackTime(parsedSecs))", color: .green)
             }
         } else {
@@ -340,17 +612,17 @@ class SessionFlowManager {
         }
         
         // Hours
-        if let hVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:h|hr|hours?)"#) {
+        if let hVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:h|hrs?|hours?)"#) {
             totalSecs += hVal * 3600
             matched = true
         }
         // Minutes
-        if let mVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:m|min|minutes?)"#) {
+        if let mVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:m|mins?|minutes?)"#) {
             totalSecs += mVal * 60
             matched = true
         }
         // Seconds
-        if let sVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:s|sec|seconds?)"#) {
+        if let sVal = extractValue(forPattern: #"(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)"#) {
             totalSecs += sVal
             matched = true
         }
@@ -530,6 +802,14 @@ class SessionFlowManager {
     
     private func loadData() {
         let defaults = UserDefaults.standard
+        self.completionSoundName = defaults.string(forKey: "SF_CompletionSoundName") ?? "Hero"
+        self.appTheme = defaults.string(forKey: "SF_AppTheme") ?? "System"
+        self.keepTimerOnTop = defaults.bool(forKey: "SF_KeepTimerOnTop")
+        if defaults.object(forKey: "SF_ShowInMenuBar") != nil {
+            self.showInMenuBar = defaults.bool(forKey: "SF_ShowInMenuBar")
+        } else {
+            self.showInMenuBar = true
+        }
         if let sessionsData = defaults.data(forKey: "SF_Sessions"),
            let decoded = try? JSONDecoder().decode([Session].self, from: sessionsData) {
             self.sessions = decoded
@@ -554,6 +834,10 @@ class SessionFlowManager {
     
     private func saveData() {
         let defaults = UserDefaults.standard
+        defaults.set(completionSoundName, forKey: "SF_CompletionSoundName")
+        defaults.set(appTheme, forKey: "SF_AppTheme")
+        defaults.set(keepTimerOnTop, forKey: "SF_KeepTimerOnTop")
+        defaults.set(showInMenuBar, forKey: "SF_ShowInMenuBar")
         if let encoded = try? JSONEncoder().encode(sessions) {
             defaults.set(encoded, forKey: "SF_Sessions")
         }
@@ -569,5 +853,22 @@ class SessionFlowManager {
         if let encoded = try? JSONEncoder().encode(groupTags) {
             defaults.set(encoded, forKey: "SF_GroupTags")
         }
+    }
+}
+
+extension NSMenuItem {
+    static let disableAutomaticMenuIcons: Void = {
+        let originalSelector = #selector(getter: NSMenuItem.image)
+        let customSelector = #selector(NSMenuItem.customImageGetter)
+        
+        guard let originalMethod = class_getInstanceMethod(NSMenuItem.self, originalSelector),
+              let customMethod = class_getInstanceMethod(NSMenuItem.self, customSelector) else {
+            return
+        }
+        method_exchangeImplementations(originalMethod, customMethod)
+    }()
+    
+    @objc func customImageGetter() -> NSImage? {
+        return nil
     }
 }
