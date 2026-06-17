@@ -14,6 +14,7 @@ struct ContentView: View {
     
     @State private var isPlayHovered = false
     @State private var isResetHovered = false
+    @State private var isStopHovered = false
     @State private var isCompactHovered = false
     @State private var isWorkspaceHovered = false
     @State private var isNotesHovered = false
@@ -61,9 +62,14 @@ struct ContentView: View {
             minHeight: manager.isCompactMode ? 28 : nil,
             maxHeight: manager.isCompactMode ? 28 : .infinity
         )
-        .sheet(isPresented: $manager.showSaveSheet) {
-            SessionSaveSheet(manager: manager, duration: manager.timeElapsed)
+        .onChange(of: manager.showSaveSheet) { oldValue, newValue in
+            if newValue {
+                SaveSheetWindowManager.shared.showSaveSheet(manager: manager, duration: manager.timeElapsed)
+            } else {
+                SaveSheetWindowManager.shared.closeSaveSheet()
+            }
         }
+
         .sheet(isPresented: $manager.showTutorialSheet) {
             TutorialSheet(manager: manager)
         }
@@ -173,15 +179,25 @@ struct ContentView: View {
                             .onHover { isPlayHovered = $0 }
                             .scaleEffect(isPlayHovered ? 1.1 : 1.0)
                             
-                            // Stop/Reset Action
-                            Button(action: {
-                                if manager.isRunning || manager.timeElapsed > 0 {
+                            // Stop Action
+                            if manager.timeElapsed > 0 || manager.isRunning {
+                                Button(action: {
                                     manager.stopAndPromptSave()
-                                } else {
-                                    manager.resetTimer()
+                                }) {
+                                    Image(systemName: "stop.fill")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(isDark ? .white : .black)
                                 }
+                                .buttonStyle(.plain)
+                                .onHover { isStopHovered = $0 }
+                                .scaleEffect(isStopHovered ? 1.1 : 1.0)
+                            }
+                            
+                            // Reset Action
+                            Button(action: {
+                                manager.resetTimer()
                             }) {
-                                Image(systemName: manager.timeElapsed > 0 ? "stop.fill" : "arrow.clockwise")
+                                Image(systemName: "arrow.clockwise")
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(isDark ? .white : .black)
                             }

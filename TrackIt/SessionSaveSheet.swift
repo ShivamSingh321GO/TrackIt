@@ -516,7 +516,7 @@ struct SessionSaveSheet: View {
             HStack(spacing: 12) {
                 Button("Discard") {
                     manager.resetTimer()
-                    dismiss()
+                    SaveSheetWindowManager.shared.closeSaveSheet()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
@@ -534,7 +534,7 @@ struct SessionSaveSheet: View {
                         duration: duration
                     )
                     manager.activeNotes = ""
-                    dismiss()
+                    SaveSheetWindowManager.shared.closeSaveSheet()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -542,7 +542,7 @@ struct SessionSaveSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(maxWidth: .infinity)
         .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
         .onAppear {
             if let activeId = manager.activeSessionId,

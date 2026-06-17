@@ -120,6 +120,59 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
     }
 }
 
+class SaveSheetWindowManager: NSObject, NSWindowDelegate {
+    static let shared = SaveSheetWindowManager()
+    private var window: NSWindow?
+    weak var onDismissManager: SessionFlowManager?
+    
+    func showSaveSheet(manager: SessionFlowManager, duration: TimeInterval) {
+        // Close existing window if any
+        if let window = window {
+            window.close()
+            self.window = nil
+        }
+        
+        onDismissManager = manager
+        
+        let saveView = SessionSaveSheet(manager: manager, duration: duration)
+        let hostingView = NSHostingView(rootView: saveView)
+
+        
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 600),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "Complete Session"
+        newWindow.contentView = hostingView
+        newWindow.center()
+        newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
+        newWindow.titleVisibility = .hidden
+        newWindow.titlebarAppearsTransparent = true
+        newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
+        
+        self.window = newWindow
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func closeSaveSheet() {
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.close()
+            self?.window = nil
+            self?.onDismissManager?.showSaveSheet = false
+        }
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        self.window = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.onDismissManager?.showSaveSheet = false
+        }
+    }
+}
 
 
 enum SessionStatus: String, Codable {

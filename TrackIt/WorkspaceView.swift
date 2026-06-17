@@ -23,6 +23,8 @@ struct WorkspaceView: View {
     @State private var plannedSessionDurationText: String = "20 min"
     @State private var plannedSessionProjectId: UUID? = nil
     @State private var plannedSessionTaskGroupId: UUID? = nil
+    @State private var isCreatingNewGroup: Bool = false
+    @State private var newGroupNameInSheet: String = ""
     @State private var plannedSessionTagIds: Set<UUID> = []
     @State private var showNewTagInSheet: Bool = false
     @State private var newTagNameInSheet: String = ""
@@ -64,7 +66,7 @@ struct WorkspaceView: View {
                     .padding(.bottom, 8)
                 
                 // Sidebar Buttons
-                SidebarButton(title: "Dashboard", icon: "window.shade.closed.to.open.aspectratio.left", isSelected: workspaceTab == .dashboard) {
+                SidebarButton(title: "Dashboard", icon: "gauge.with.needle", isSelected: workspaceTab == .dashboard) {
                     selectedProject = nil
                     workspaceTab = .dashboard
                 }
@@ -801,23 +803,58 @@ struct WorkspaceView: View {
                     .labelsHidden()
                     .onChange(of: plannedSessionProjectId) { _, _ in
                         plannedSessionTaskGroupId = nil
+                        isCreatingNewGroup = false
                     }
                 }
                 
                 // Task Group Picker (if project selected)
                 if let projId = plannedSessionProjectId {
                     let groups = manager.taskGroups.filter { $0.projectRef == projId }
-                    if !groups.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Task Group")
-                                .font(.caption).foregroundColor(.secondary)
-                            Picker("", selection: $plannedSessionTaskGroupId) {
-                                Text("No Group").tag(nil as UUID?)
-                                ForEach(groups) { group in
-                                    Text(group.name).tag(group.id as UUID?)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Task Group")
+                            .font(.caption).foregroundColor(.secondary)
+                        
+                        if isCreatingNewGroup {
+                            HStack {
+                                TextField("New Group Name", text: $newGroupNameInSheet)
+                                    .textFieldStyle(.plain)
+                                    .padding(8)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(6)
+                                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
+                                
+                                Button(action: {
+                                    isCreatingNewGroup = false
+                                    newGroupNameInSheet = ""
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .labelsHidden()
+                        } else {
+                            HStack {
+                                Picker("", selection: $plannedSessionTaskGroupId) {
+                                    Text("No Group").tag(nil as UUID?)
+                                    ForEach(groups) { group in
+                                        Text(group.name).tag(group.id as UUID?)
+                                    }
+                                }
+                                .labelsHidden()
+                                
+                                Button(action: {
+                                    isCreatingNewGroup = true
+                                    plannedSessionTaskGroupId = nil
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus.circle")
+                                        Text("New Group")
+                                    }
+                                    .font(.footnote)
+                                    .foregroundColor(.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -896,6 +933,9 @@ struct WorkspaceView: View {
                 Button("Cancel") {
                     showAddPlannedSessionSheet = false
                     plannedSessionTitle = ""
+                    plannedSessionTaskGroupId = nil
+                    isCreatingNewGroup = false
+                    newGroupNameInSheet = ""
                 }
                 .buttonStyle(.bordered)
                 
@@ -905,16 +945,24 @@ struct WorkspaceView: View {
                     let parsed = manager.parseDuration(plannedSessionDurationText)
                     let duration = parsed?.duration ?? 1800 // 30m default
                     
+                    var finalGroupId = plannedSessionTaskGroupId
+                    if let projId = plannedSessionProjectId, isCreatingNewGroup, !newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let group = manager.createTaskGroup(name: newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines), projectRef: projId)
+                        finalGroupId = group.id
+                    }
+                    
                     manager.planSession(
                         title: plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle,
                         duration: duration,
                         projectId: plannedSessionProjectId,
-                        taskGroupId: plannedSessionTaskGroupId,
+                        taskGroupId: finalGroupId,
                         tagIds: Array(plannedSessionTagIds)
                     )
                     showAddPlannedSessionSheet = false
                     plannedSessionTitle = ""
                     plannedSessionTaskGroupId = nil
+                    isCreatingNewGroup = false
+                    newGroupNameInSheet = ""
                     plannedSessionTagIds = []
                     showNewTagInSheet = false
                 }
