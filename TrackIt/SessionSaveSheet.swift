@@ -25,6 +25,8 @@ struct SessionSaveSheet: View {
     // For creating a new task group inline (when new project created)
     @State private var justCreatedNewProject: Bool = false
     @State private var showNewGroupField: Bool = false
+    @State private var isEditingExistingGroup: Bool = false
+    @State private var editingGroupId: UUID? = nil
     @State private var newGroupName: String = ""
     @State private var selectedGroupTagIds: Set<UUID> = []
     @State private var showNewGroupTagField: Bool = false
@@ -204,22 +206,10 @@ struct SessionSaveSheet: View {
                             
                             let groups = manager.taskGroups.filter { $0.projectRef == selectedProjectId }
                             
-                            // Existing groups picker (for established projects)
-                            if !groups.isEmpty {
-                                Picker("", selection: $selectedTaskGroupId) {
-                                    Text("Ungrouped").tag(nil as UUID?)
-                                    ForEach(groups) { group in
-                                        Text(group.name).tag(group.id as UUID?)
-                                    }
-                                }
-                                .labelsHidden()
-                            }
-                            
-                            // Inline New Group Creator (when a new project was just created)
-                            if justCreatedNewProject {
-                                if showNewGroupField {
+                            // Task Group Selector & Inline Creator
+                            if showNewGroupField {
                                     VStack(spacing: 12) {
-                                        TextField("New Group Name (e.g. Frontend, Backend)", text: $newGroupName)
+                                        TextField(isEditingExistingGroup ? "Edit Group Name" : "New Group Name (e.g. Frontend, Backend)", text: $newGroupName)
                                             .textFieldStyle(.plain)
                                             .padding(8)
                                             .background(Color(NSColor.controlBackgroundColor))
@@ -318,12 +308,14 @@ struct SessionSaveSheet: View {
                                         .cornerRadius(6)
                                         
                                         HStack {
-                                            Button("Cancel Group") {
+                                            Button("Cancel") {
                                                 showNewGroupField = false
                                                 newGroupName = ""
                                                 selectedGroupTagIds = []
                                                 showNewGroupTagField = false
                                                 newGroupTagName = ""
+                                                isEditingExistingGroup = false
+                                                editingGroupId = nil
                                             }
                                             .buttonStyle(.plain)
                                             .foregroundColor(.secondary)
@@ -331,20 +323,31 @@ struct SessionSaveSheet: View {
                                             
                                             Spacer()
                                             
-                                            Button("Create & Select") {
+                                            Button(isEditingExistingGroup ? "Save Changes" : "Create & Select") {
                                                 let t = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
                                                 if !t.isEmpty, let projId = selectedProjectId {
-                                                    let newGroup = manager.createTaskGroup(
-                                                        name: t,
-                                                        projectRef: projId,
-                                                        tagRefs: Array(selectedGroupTagIds)
-                                                    )
-                                                    selectedTaskGroupId = newGroup.id
+                                                    if isEditingExistingGroup, let editingId = editingGroupId {
+                                                        manager.updateTaskGroup(
+                                                            id: editingId,
+                                                            name: t,
+                                                            tagRefs: Array(selectedGroupTagIds)
+                                                        )
+                                                        selectedTaskGroupId = editingId
+                                                    } else {
+                                                        let newGroup = manager.createTaskGroup(
+                                                            name: t,
+                                                            projectRef: projId,
+                                                            tagRefs: Array(selectedGroupTagIds)
+                                                        )
+                                                        selectedTaskGroupId = newGroup.id
+                                                    }
                                                     newGroupName = ""
                                                     selectedGroupTagIds = []
                                                     showNewGroupField = false
                                                     showNewGroupTagField = false
                                                     newGroupTagName = ""
+                                                    isEditingExistingGroup = false
+                                                    editingGroupId = nil
                                                 }
                                             }
                                             .buttonStyle(.borderedProminent)
@@ -356,22 +359,48 @@ struct SessionSaveSheet: View {
                                     .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
                                     .cornerRadius(8)
                                     .transition(.slide.combined(with: .opacity))
-                                } else {
-                                    if groups.isEmpty {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "tray")
-                                                .font(.system(size: 11))
-                                                .foregroundColor(.secondary)
-                                            Text("Session will be ungrouped")
-                                                .font(.footnote)
-                                                .foregroundColor(.secondary)
+                            } else {
+                                HStack {
+                                    if !groups.isEmpty {
+                                        Picker("", selection: $selectedTaskGroupId) {
+                                            Text("Ungrouped").tag(nil as UUID?)
+                                            ForEach(groups) { group in
+                                                Text(group.name).tag(group.id as UUID?)
+                                            }
                                         }
+                                        .labelsHidden()
+                                    } else {
+                                        Text("No task groups in this project.")
+                                            .font(.footnote)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    if selectedTaskGroupId != nil {
+                                        Button(action: {
+                                            if let groupId = selectedTaskGroupId, let group = groups.first(where: { $0.id == groupId }) {
+                                                newGroupName = group.name
+                                                selectedGroupTagIds = Set(group.tagRefs ?? [])
+                                                editingGroupId = group.id
+                                                isEditingExistingGroup = true
+                                                withAnimation { showNewGroupField = true }
+                                            }
+                                        }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "pencil.circle")
+                                                Text("Edit Group")
+                                            }
+                                            .font(.footnote)
+                                            .foregroundColor(.accentColor)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                     
                                     Button(action: {
-                                        withAnimation {
-                                            showNewGroupField = true
-                                        }
+                                        isEditingExistingGroup = false
+                                        editingGroupId = nil
+                                        newGroupName = ""
+                                        selectedGroupTagIds = []
+                                        withAnimation { showNewGroupField = true }
                                     }) {
                                         HStack(spacing: 4) {
                                             Image(systemName: "plus.circle")
@@ -381,19 +410,14 @@ struct SessionSaveSheet: View {
                                         .foregroundColor(.accentColor)
                                     }
                                     .buttonStyle(.plain)
-                                    .padding(.top, 2)
                                 }
-                            } else if groups.isEmpty {
-                                Text("No task groups in this project.")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
                             }
                         }
                     }
                     
                     // Tags Section
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Tags")
+                        Text("Session Tag")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .fontWeight(.medium)
@@ -415,7 +439,7 @@ struct SessionSaveSheet: View {
                                 }
                             }
                         } else if !showNewTagField {
-                            Text("No tags created yet.")
+                            Text("No session tags created yet.")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
@@ -480,7 +504,7 @@ struct SessionSaveSheet: View {
                             }) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "plus.circle")
-                                    Text("New Tag")
+                                    Text("New Session Tag")
                                 }
                                 .font(.footnote)
                                 .foregroundColor(.accentColor)

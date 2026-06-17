@@ -384,6 +384,8 @@ class SessionFlowManager {
     }
     
     func startPlannedSession(_ session: Session) {
+        resetTimer()
+        timerDuration = session.duration
         activeSessionId = session.id
         if let index = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[index].status = .running
@@ -782,6 +784,14 @@ class SessionFlowManager {
         taskGroups.append(group)
         saveData()
         return group
+    }
+    
+    func updateTaskGroup(id: UUID, name: String, tagRefs: [UUID]) {
+        if let index = taskGroups.firstIndex(where: { $0.id == id }) {
+            taskGroups[index].name = name
+            taskGroups[index].tagRefs = tagRefs
+            saveData()
+        }
     }
     
     func deleteTaskGroup(id: UUID) {

@@ -647,11 +647,12 @@ struct SessionRow: View {
                         .bold()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
+                        .background(Color.accentColor.opacity((manager.isRunning || manager.timeElapsed > 0) ? 0.5 : 1.0))
+                        .foregroundColor(.white.opacity((manager.isRunning || manager.timeElapsed > 0) ? 0.7 : 1.0))
                         .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
+                    .disabled(manager.isRunning || manager.timeElapsed > 0)
                 }
                 
                 // Move to group

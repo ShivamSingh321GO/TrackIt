@@ -23,8 +23,17 @@ struct WorkspaceView: View {
     @State private var plannedSessionDurationText: String = "20 min"
     @State private var plannedSessionProjectId: UUID? = nil
     @State private var plannedSessionTaskGroupId: UUID? = nil
+    @State private var isCreatingNewProjectInSheet: Bool = false
+    @State private var newProjectNameInSheet: String = ""
+    @State private var newProjectColorInSheet: String = Project.defaultColors.first ?? "#4A90E2"
     @State private var isCreatingNewGroup: Bool = false
+    @State private var isEditingExistingGroupInSheet: Bool = false
+    @State private var editingGroupIdInSheet: UUID? = nil
     @State private var newGroupNameInSheet: String = ""
+    @State private var plannedSessionGroupTagIds: Set<UUID> = []
+    @State private var showNewGroupTagInSheet: Bool = false
+    @State private var newGroupTagNameInSheet: String = ""
+    @State private var newGroupTagColorInSheet: String = Tag.defaultColors.first ?? "#FF6B6B"
     @State private var plannedSessionTagIds: Set<UUID> = []
     @State private var showNewTagInSheet: Bool = false
     @State private var newTagNameInSheet: String = ""
@@ -39,7 +48,6 @@ struct WorkspaceView: View {
         case dashboard
         case search
         case projects
-        case reports
     }
     
     enum SearchMode {
@@ -71,20 +79,17 @@ struct WorkspaceView: View {
                     workspaceTab = .dashboard
                 }
                 
-                SidebarButton(title: "Search & Insights", icon: "magnifyingglass", isSelected: workspaceTab == .search) {
-                    selectedProject = nil
-                    workspaceTab = .search
-                }
-                
                 SidebarButton(title: "Projects", icon: "folder", isSelected: workspaceTab == .projects) {
                     selectedProject = nil
                     workspaceTab = .projects
                 }
                 
-                SidebarButton(title: "Reports", icon: "chart.bar", isSelected: workspaceTab == .reports) {
+                SidebarButton(title: "Search & Insights", icon: "magnifyingglass", isSelected: workspaceTab == .search) {
                     selectedProject = nil
-                    workspaceTab = .reports
+                    workspaceTab = .search
                 }
+                
+
                 
                 Spacer()
                 
@@ -130,8 +135,7 @@ struct WorkspaceView: View {
                     } else {
                         projectsTab
                     }
-                case .reports:
-                    reportsTab
+
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -540,92 +544,7 @@ struct WorkspaceView: View {
         }
     }
     
-    // MARK: - Reports Tab
-    private var reportsTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Time Reports")
-                        .font(.title2)
-                        .bold()
-                    Text("Aggregated summaries of work time.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                
-                let completed = manager.sessions.filter { $0.status == .completed }
-                let todaySessions = completed.filter { Calendar.current.isDateInToday($0.date) }
-                let weekSessions = completed.filter { $0.date.timeIntervalSinceNow > -7 * 24 * 3600 }
-                let monthSessions = completed.filter { $0.date.timeIntervalSinceNow > -30 * 24 * 3600 }
-                
-                let todayTotal = todaySessions.reduce(0.0) { $0 + $1.duration }
-                let weekTotal = weekSessions.reduce(0.0) { $0 + $1.duration }
-                let monthTotal = monthSessions.reduce(0.0) { $0 + $1.duration }
-                
-                HStack(spacing: 20) {
-                    ReportCard(period: "Today", duration: todayTotal, sessionCount: todaySessions.count)
-                    ReportCard(period: "This Week", duration: weekTotal, sessionCount: weekSessions.count)
-                    ReportCard(period: "This Month", duration: monthTotal, sessionCount: monthSessions.count)
-                }
-                
-                // Breakdown by Project
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Time Breakdown by Project")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    let projectsWithDurations = getProjectTimeBreakdown()
-                    
-                    if projectsWithDurations.isEmpty {
-                        Text("No recorded data to display in breakdown.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 10)
-                    } else {
-                        VStack(spacing: 14) {
-                            let maxDuration = projectsWithDurations.map { $0.duration }.max() ?? 1.0
-                            
-                            ForEach(projectsWithDurations, id: \.name) { item in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        HStack(spacing: 6) {
-                                            Circle()
-                                                .fill(Color(hex: item.colorHex))
-                                                .frame(width: 8, height: 8)
-                                            Text(item.name)
-                                                .fontWeight(.medium)
-                                        }
-                                        Spacer()
-                                        Text(formatHoursMins(item.duration))
-                                            .foregroundColor(.secondary)
-                                            .font(.system(.body, design: .monospaced))
-                                    }
-                                    
-                                    // Progress Bar
-                                    GeometryReader { geo in
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.secondary.opacity(0.1))
-                                            .frame(height: 8)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 4)
-                                                    .fill(Color(hex: item.colorHex))
-                                                    .frame(width: geo.size.width * CGFloat(item.duration / maxDuration), height: 8),
-                                                alignment: .leading
-                                            )
-                                    }
-                                    .frame(height: 8)
-                                }
-                            }
-                        }
-                        .padding(16)
-                        .background(Color.secondary.opacity(0.04))
-                        .cornerRadius(10)
-                    }
-                }
-            }
-            .padding(24)
-        }
-    }
+
     
     // MARK: - Helpers & Data Computations
     
@@ -732,25 +651,7 @@ struct WorkspaceView: View {
         return results
     }
     
-    private func getProjectTimeBreakdown() -> [(name: String, colorHex: String, duration: TimeInterval)] {
-        var breakdown: [UUID?: TimeInterval] = [:]
-        
-        let completed = manager.sessions.filter { $0.status == .completed }
-        for session in completed {
-            breakdown[session.projectRef, default: 0.0] += session.duration
-        }
-        
-        var resultList: [(name: String, colorHex: String, duration: TimeInterval)] = []
-        for (ref, dur) in breakdown {
-            if let ref = ref, let proj = manager.projects.first(where: { $0.id == ref }) {
-                resultList.append((proj.name, proj.colorHex, dur))
-            } else if ref == nil {
-                resultList.append(("Standalone Sessions", "#8E8E93", dur))
-            }
-        }
-        
-        return resultList.sorted(by: { $0.duration > $1.duration })
-    }
+
     
     private func formatHoursMins(_ seconds: TimeInterval) -> String {
         let hrs = Int(seconds) / 3600
@@ -794,16 +695,94 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Project")
                         .font(.caption).foregroundColor(.secondary)
-                    Picker("", selection: $plannedSessionProjectId) {
-                        Text("Standalone Session").tag(nil as UUID?)
-                        ForEach(manager.projects) { proj in
-                            Text(proj.name).tag(proj.id as UUID?)
+                    
+                    if isCreatingNewProjectInSheet {
+                        VStack(spacing: 12) {
+                            TextField("New Project Name", text: $newProjectNameInSheet)
+                                .textFieldStyle(.plain)
+                                .padding(8)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                                )
+                            
+                            // Color Selector
+                            HStack(spacing: 8) {
+                                ForEach(Project.defaultColors, id: \.self) { hex in
+                                    Circle()
+                                        .fill(Color(hex: hex))
+                                        .frame(width: 18, height: 18)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.primary, lineWidth: newProjectColorInSheet == hex ? 1.5 : 0)
+                                        )
+                                        .onTapGesture { newProjectColorInSheet = hex }
+                                }
+                            }
+                            
+                            HStack {
+                                Button("Cancel Project") {
+                                    isCreatingNewProjectInSheet = false
+                                    newProjectNameInSheet = ""
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.secondary)
+                                .font(.footnote)
+                                
+                                Spacer()
+                                
+                                Button("Create & Select") {
+                                    if !newProjectNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        let newProj = manager.createProject(name: newProjectNameInSheet, colorHex: newProjectColorInSheet)
+                                        plannedSessionProjectId = newProj.id
+                                        newProjectNameInSheet = ""
+                                        isCreatingNewProjectInSheet = false
+                                        plannedSessionTaskGroupId = nil
+                                        isCreatingNewGroup = false
+                                        plannedSessionGroupTagIds = []
+                                        showNewGroupTagInSheet = false
+                                        newGroupTagNameInSheet = ""
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
                         }
-                    }
-                    .labelsHidden()
-                    .onChange(of: plannedSessionProjectId) { _, _ in
-                        plannedSessionTaskGroupId = nil
-                        isCreatingNewGroup = false
+                        .padding(10)
+                        .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
+                        .cornerRadius(8)
+                        .transition(.slide.combined(with: .opacity))
+                    } else {
+                        HStack {
+                            Picker("", selection: $plannedSessionProjectId) {
+                                Text("Standalone Session").tag(nil as UUID?)
+                                ForEach(manager.projects) { proj in
+                                    Text(proj.name).tag(proj.id as UUID?)
+                                }
+                            }
+                            .labelsHidden()
+                            .onChange(of: plannedSessionProjectId) { _, _ in
+                                plannedSessionTaskGroupId = nil
+                                isCreatingNewGroup = false
+                                plannedSessionGroupTagIds = []
+                                showNewGroupTagInSheet = false
+                                newGroupTagNameInSheet = ""
+                            }
+                            
+                            Button(action: {
+                                withAnimation { isCreatingNewProjectInSheet = true }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                    Text("New Project")
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 
@@ -815,23 +794,154 @@ struct WorkspaceView: View {
                             .font(.caption).foregroundColor(.secondary)
                         
                         if isCreatingNewGroup {
-                            HStack {
-                                TextField("New Group Name", text: $newGroupNameInSheet)
+                            VStack(spacing: 12) {
+                                TextField(isEditingExistingGroupInSheet ? "Edit Group Name" : "New Group Name", text: $newGroupNameInSheet)
                                     .textFieldStyle(.plain)
                                     .padding(8)
                                     .background(Color(NSColor.controlBackgroundColor))
                                     .cornerRadius(6)
                                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                                 
-                                Button(action: {
-                                    isCreatingNewGroup = false
-                                    newGroupNameInSheet = ""
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
+                                // Group Tags Section
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Group Tags")
+                                        .font(.system(size: 10))
                                         .foregroundColor(.secondary)
+                                    
+                                    if !manager.groupTags.isEmpty {
+                                        FlowLayout(spacing: 4) {
+                                            ForEach(manager.groupTags) { tag in
+                                                TagChip(
+                                                    tag: tag,
+                                                    isSelected: plannedSessionGroupTagIds.contains(tag.id),
+                                                    isCheckable: true
+                                                ) {
+                                                    if plannedSessionGroupTagIds.contains(tag.id) {
+                                                        plannedSessionGroupTagIds.remove(tag.id)
+                                                    } else {
+                                                        plannedSessionGroupTagIds.insert(tag.id)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if showNewGroupTagInSheet {
+                                        VStack(spacing: 8) {
+                                            TextField("Tag name (e.g. core, experimental)", text: $newGroupTagNameInSheet)
+                                                .textFieldStyle(.plain)
+                                                .padding(6)
+                                                .background(Color(NSColor.controlBackgroundColor))
+                                                .cornerRadius(4)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 4)
+                                                        .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                                                )
+                                            
+                                            HStack(spacing: 4) {
+                                                ForEach(Tag.defaultColors.prefix(5), id: \.self) { hex in
+                                                    Circle().fill(Color(hex: hex)).frame(width: 14, height: 14)
+                                                        .overlay(
+                                                            Circle().stroke(Color.primary, lineWidth: newGroupTagColorInSheet == hex ? 1.5 : 0)
+                                                        )
+                                                        .onTapGesture { newGroupTagColorInSheet = hex }
+                                                }
+                                                Spacer()
+                                            }
+                                            
+                                            HStack {
+                                                Button("Cancel") {
+                                                    showNewGroupTagInSheet = false
+                                                    newGroupTagNameInSheet = ""
+                                                }
+                                                .buttonStyle(.plain)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                
+                                                Spacer()
+                                                
+                                                Button("Create & Add") {
+                                                    let t = newGroupTagNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                    if !t.isEmpty {
+                                                        let tag = manager.createGroupTag(name: t, colorHex: newGroupTagColorInSheet)
+                                                        plannedSessionGroupTagIds.insert(tag.id)
+                                                        newGroupTagNameInSheet = ""
+                                                        showNewGroupTagInSheet = false
+                                                    }
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .controlSize(.small)
+                                                .disabled(newGroupTagNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                            }
+                                        }
+                                    } else {
+                                        Button(action: { showNewGroupTagInSheet = true }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "plus.circle")
+                                                Text("New Group Tag")
+                                            }
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.accentColor)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
-                                .buttonStyle(.plain)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.04))
+                                .cornerRadius(6)
+                                
+                                HStack {
+                                    Button("Cancel") {
+                                        isCreatingNewGroup = false
+                                        newGroupNameInSheet = ""
+                                        plannedSessionGroupTagIds = []
+                                        showNewGroupTagInSheet = false
+                                        newGroupTagNameInSheet = ""
+                                        isEditingExistingGroupInSheet = false
+                                        editingGroupIdInSheet = nil
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.secondary)
+                                    .font(.footnote)
+                                    
+                                    Spacer()
+                                    
+                                    Button(isEditingExistingGroupInSheet ? "Save Changes" : "Create & Select") {
+                                        let t = newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !t.isEmpty, let projId = plannedSessionProjectId {
+                                            if isEditingExistingGroupInSheet, let editingId = editingGroupIdInSheet {
+                                                manager.updateTaskGroup(
+                                                    id: editingId,
+                                                    name: t,
+                                                    tagRefs: Array(plannedSessionGroupTagIds)
+                                                )
+                                                plannedSessionTaskGroupId = editingId
+                                            } else {
+                                                let newGroup = manager.createTaskGroup(
+                                                    name: t,
+                                                    projectRef: projId,
+                                                    tagRefs: Array(plannedSessionGroupTagIds)
+                                                )
+                                                plannedSessionTaskGroupId = newGroup.id
+                                            }
+                                            newGroupNameInSheet = ""
+                                            plannedSessionGroupTagIds = []
+                                            isCreatingNewGroup = false
+                                            showNewGroupTagInSheet = false
+                                            newGroupTagNameInSheet = ""
+                                            isEditingExistingGroupInSheet = false
+                                            editingGroupIdInSheet = nil
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .disabled(newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
                             }
+                            .padding(10)
+                            .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
+                            .cornerRadius(8)
+                            .transition(.slide.combined(with: .opacity))
                         } else {
                             HStack {
                                 Picker("", selection: $plannedSessionTaskGroupId) {
@@ -842,9 +952,32 @@ struct WorkspaceView: View {
                                 }
                                 .labelsHidden()
                                 
+                                if plannedSessionTaskGroupId != nil {
+                                    Button(action: {
+                                        if let groupId = plannedSessionTaskGroupId, let group = groups.first(where: { $0.id == groupId }) {
+                                            newGroupNameInSheet = group.name
+                                            plannedSessionGroupTagIds = Set(group.tagRefs ?? [])
+                                            editingGroupIdInSheet = group.id
+                                            isEditingExistingGroupInSheet = true
+                                            withAnimation { isCreatingNewGroup = true }
+                                        }
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "pencil.circle")
+                                            Text("Edit Group")
+                                        }
+                                        .font(.footnote)
+                                        .foregroundColor(.accentColor)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
                                 Button(action: {
-                                    isCreatingNewGroup = true
-                                    plannedSessionTaskGroupId = nil
+                                    isEditingExistingGroupInSheet = false
+                                    editingGroupIdInSheet = nil
+                                    newGroupNameInSheet = ""
+                                    plannedSessionGroupTagIds = []
+                                    withAnimation { isCreatingNewGroup = true }
                                 }) {
                                     HStack(spacing: 4) {
                                         Image(systemName: "plus.circle")
@@ -861,7 +994,7 @@ struct WorkspaceView: View {
                 
                 // Tags Section
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Tags")
+                    Text("Session Tags")
                         .font(.caption).foregroundColor(.secondary)
                     
                     if !manager.tags.isEmpty {
@@ -919,7 +1052,7 @@ struct WorkspaceView: View {
                         Button(action: { showNewTagInSheet = true }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "plus.circle")
-                                Text("New Tag")
+                                Text("New Session Tag")
                             }
                             .font(.footnote)
                             .foregroundColor(.accentColor)
@@ -936,6 +1069,11 @@ struct WorkspaceView: View {
                     plannedSessionTaskGroupId = nil
                     isCreatingNewGroup = false
                     newGroupNameInSheet = ""
+                    plannedSessionGroupTagIds = []
+                    showNewGroupTagInSheet = false
+                    newGroupTagNameInSheet = ""
+                    isCreatingNewProjectInSheet = false
+                    newProjectNameInSheet = ""
                 }
                 .buttonStyle(.bordered)
                 
@@ -947,7 +1085,7 @@ struct WorkspaceView: View {
                     
                     var finalGroupId = plannedSessionTaskGroupId
                     if let projId = plannedSessionProjectId, isCreatingNewGroup, !newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        let group = manager.createTaskGroup(name: newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines), projectRef: projId)
+                        let group = manager.createTaskGroup(name: newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines), projectRef: projId, tagRefs: Array(plannedSessionGroupTagIds))
                         finalGroupId = group.id
                     }
                     
@@ -963,15 +1101,20 @@ struct WorkspaceView: View {
                     plannedSessionTaskGroupId = nil
                     isCreatingNewGroup = false
                     newGroupNameInSheet = ""
+                    plannedSessionGroupTagIds = []
+                    showNewGroupTagInSheet = false
+                    newGroupTagNameInSheet = ""
                     plannedSessionTagIds = []
                     showNewTagInSheet = false
+                    isCreatingNewProjectInSheet = false
+                    newProjectNameInSheet = ""
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(plannedSessionTitle.isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 350)
+        .frame(width: 550)
     }
     
     // MARK: - Add Project Sheet
@@ -1181,10 +1324,11 @@ struct PlannedSessionRow: View {
                 .bold()
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.accentColor)
-                .foregroundColor(.white)
+                .background(Color.accentColor.opacity((manager.isRunning || manager.timeElapsed > 0) ? 0.5 : 1.0))
+                .foregroundColor(.white.opacity((manager.isRunning || manager.timeElapsed > 0) ? 0.7 : 1.0))
                 .cornerRadius(6)
             }
+            .disabled(manager.isRunning || manager.timeElapsed > 0)
             .buttonStyle(.plain)
         }
         .padding(12)
@@ -1647,40 +1791,6 @@ struct StatCard: View {
     }
 }
 
-struct ReportCard: View {
-    let period: String
-    let duration: TimeInterval
-    let sessionCount: Int
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(period)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-            
-            Text(formatDuration(duration))
-                .font(.system(.title, design: .monospaced))
-                .bold()
-            
-            Text("\(sessionCount) Sessions")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(10)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
-    }
-    
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let hrs = Int(duration) / 3600
-        let mins = (Int(duration) % 3600) / 60
-        let secs = Int(duration) % 60
-        return String(format: "%02d:%02d:%02d", hrs, mins, secs)
-    }
-}
 
 struct MatchingGroupRow: View {
     let group: TaskGroup
