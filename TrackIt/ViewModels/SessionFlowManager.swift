@@ -9,254 +9,8 @@ import SwiftUI
 import Combine
 import AppKit
 import UserNotifications
+import SwiftData
 
-class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = NotificationDelegate()
-    
-    override init() {
-        super.init()
-    }
-    
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // Show banner and play sound even in foreground
-        completionHandler([.banner, .sound])
-    }
-}
-
-class StatusItemTarget: NSObject {
-    static let shared = StatusItemTarget()
-    
-    weak var manager: SessionFlowManager? = nil
-    
-    @objc func showAppWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        for window in NSApp.windows {
-            window.makeKeyAndOrderFront(nil)
-        }
-    }
-    
-    @objc func openSettings() {
-        guard let manager = manager else { return }
-        DispatchQueue.main.async {
-            SettingsWindowManager.shared.showSettings(manager: manager)
-        }
-    }
-    
-    @objc func openTutorial() {
-        guard let manager = manager else { return }
-        showAppWindow()
-        DispatchQueue.main.async {
-            manager.showTutorialSheet = true
-        }
-    }
-    
-    @objc func toggleTimer() {
-        guard let manager = manager else { return }
-        if manager.isRunning {
-            manager.pauseTimer()
-        } else {
-            manager.startTimer()
-        }
-    }
-    
-    @objc func resetTimer() {
-        guard let manager = manager else { return }
-        let duration = manager.timerDuration
-        manager.resetTimer()
-        manager.timerDuration = duration
-        manager.startTimer()
-    }
-    
-    @objc func resetAndPauseTimer() {
-        guard let manager = manager else { return }
-        let duration = manager.timerDuration
-        manager.resetTimer()
-        manager.timerDuration = duration
-    }
-}
-
-class SettingsWindowManager: NSObject, NSWindowDelegate {
-    static let shared = SettingsWindowManager()
-    private var window: NSWindow?
-    
-    func showSettings(manager: SessionFlowManager) {
-        if let window = window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        
-        let settingsView = SettingsSheet(manager: manager)
-        let hostingView = NSHostingView(rootView: settingsView)
-        
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        newWindow.title = "Settings"
-        newWindow.contentView = hostingView
-        newWindow.center()
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-        
-        self.window = newWindow
-        newWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-    
-    func closeSettings() {
-        DispatchQueue.main.async { [weak self] in
-            self?.window?.close()
-            self?.window = nil
-        }
-    }
-    
-    func windowWillClose(_ notification: Notification) {
-        self.window = nil
-    }
-}
-
-class SaveSheetWindowManager: NSObject, NSWindowDelegate {
-    static let shared = SaveSheetWindowManager()
-    private var window: NSWindow?
-    weak var onDismissManager: SessionFlowManager?
-    
-    func showSaveSheet(manager: SessionFlowManager, duration: TimeInterval) {
-        // Close existing window if any
-        if let window = window {
-            window.close()
-            self.window = nil
-        }
-        
-        onDismissManager = manager
-        
-        let saveView = SessionSaveSheet(manager: manager, duration: duration)
-        let hostingView = NSHostingView(rootView: saveView)
-
-        
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 600),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        newWindow.title = "Complete Session"
-        newWindow.contentView = hostingView
-        newWindow.center()
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-        newWindow.titleVisibility = .hidden
-        newWindow.titlebarAppearsTransparent = true
-        newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
-        
-        self.window = newWindow
-        newWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-    
-    func closeSaveSheet() {
-        DispatchQueue.main.async { [weak self] in
-            self?.window?.close()
-            self?.window = nil
-            self?.onDismissManager?.showSaveSheet = false
-        }
-    }
-    
-    func windowWillClose(_ notification: Notification) {
-        self.window = nil
-        DispatchQueue.main.async { [weak self] in
-            self?.onDismissManager?.showSaveSheet = false
-        }
-    }
-}
-
-
-enum SessionStatus: String, Codable {
-    case planned
-    case running
-    case completed
-}
-
-struct Project: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var name: String
-    var colorHex: String
-    var createdAt: Date = Date()
-    
-    static let defaultColors = [
-        "#FF5E5B", "#D81159", "#8F2D56", "#218380", "#73D2DE",
-        "#4A90E2", "#50E3C2", "#F5A623", "#B8E986", "#9013FE"
-    ]
-    
-    enum CodingKeys: String, CodingKey {
-        case id, name, colorHex, createdAt
-    }
-    
-    init(id: UUID = UUID(), name: String, colorHex: String, createdAt: Date = Date()) {
-        self.id = id
-        self.name = name
-        self.colorHex = colorHex
-        self.createdAt = createdAt
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        self.name = try container.decode(String.self, forKey: .name)
-        self.colorHex = try container.decode(String.self, forKey: .colorHex)
-        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
-    }
-}
-
-struct Session: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var title: String
-    var duration: TimeInterval // completed duration
-    var date: Date
-    var notes: String
-    var projectRef: UUID?
-    var status: SessionStatus
-    var voiceNoteUrl: String?
-    var taskGroupRef: UUID? = nil
-    var tagRefs: [UUID]? = nil
-    
-    // Compatibility-safe fields for chronological timeline tracking
-    var wasPlanned: Bool? = false
-    var datePlanned: Date? = nil
-    
-    var isPlannedSession: Bool {
-        wasPlanned ?? false
-    }
-}
-
-struct TaskGroup: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var name: String
-    var projectRef: UUID
-    var createdAt: Date = Date()
-    var tagRefs: [UUID]? = nil
-}
-
-struct Tag: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var name: String
-    var colorHex: String
-    var createdAt: Date = Date()
-    
-    static let defaultColors = [
-        "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
-        "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9"
-    ]
-}
-
-enum AppView {
-    case timer
-    case workspace
-}
 
 @Observable
 class SessionFlowManager {
@@ -313,19 +67,30 @@ class SessionFlowManager {
     private var accumulatedTime: TimeInterval = 0
     private var statusItem: NSStatusItem? = nil
     
+    var modelContainer: ModelContainer
+    var modelContext: ModelContext
+    
     init() {
-        _ = NSMenuItem.disableAutomaticMenuIcons
-        loadData()
-        // Seed initial projects if empty
-        if projects.isEmpty {
-            projects = [
-                Project(name: "Fleet Management App", colorHex: "#4A90E2"),
-                Project(name: "UniMart", colorHex: "#50E3C2"),
-                Project(name: "SmartQueue", colorHex: "#F5A623")
-            ]
-            saveData()
+        do {
+            let schema = Schema([Project.self, Session.self, TaskGroup.self, Tag.self])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            self.modelContainer = container
+            self.modelContext = ModelContext(container)
+            
+            // Print the SwiftData SQLite database path so you can verify it on your Mac
+            let url = modelConfiguration.url
+            print("🗄️ SwiftData is storing your data here:")
+            print(url.path)
+            
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
         }
         
+        loadData()
+        
+
         // Request Notification Permissions and Set Delegate
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
@@ -710,11 +475,10 @@ class SessionFlowManager {
             sessions[index].date = Date()
             sessions[index].status = .completed
             
-            // Move it to the front of the list so it appears as the most recent
             let completedSession = sessions.remove(at: index)
             sessions.insert(completedSession, at: 0)
         } else {
-            // Create a brand new session (for stopwatch or ad-hoc timers)
+            // Create a brand new session
             let newSession = Session(
                 title: finalTitle,
                 duration: duration,
@@ -726,10 +490,10 @@ class SessionFlowManager {
                 tagRefs: tagIds
             )
             sessions.insert(newSession, at: 0)
+            modelContext.insert(newSession)
         }
         saveData()
         
-        // Reset Timer & Active Session
         activeSessionId = nil
         resetTimer()
         timerDuration = 0
@@ -750,25 +514,38 @@ class SessionFlowManager {
             datePlanned: Date()
         )
         sessions.insert(plannedSession, at: 0)
+        modelContext.insert(plannedSession)
         saveData()
     }
     
     func createProject(name: String, colorHex: String) -> Project {
         let project = Project(name: name, colorHex: colorHex)
         projects.append(project)
+        modelContext.insert(project)
         saveData()
         return project
     }
     
     func deleteSession(id: UUID) {
-        sessions.removeAll { $0.id == id }
-        saveData()
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            let session = sessions.remove(at: index)
+            modelContext.delete(session)
+            saveData()
+        }
     }
     
     func deleteProject(id: UUID) {
-        projects.removeAll { $0.id == id }
+        if let index = projects.firstIndex(where: { $0.id == id }) {
+            let proj = projects.remove(at: index)
+            modelContext.delete(proj)
+        }
         // Remove task groups belonging to this project
+        let groupsToDelete = taskGroups.filter { $0.projectRef == id }
+        for group in groupsToDelete {
+            modelContext.delete(group)
+        }
         taskGroups.removeAll { $0.projectRef == id }
+        
         // Keep sessions but unset their projectRef and taskGroupRef
         for i in 0..<sessions.count {
             if sessions[i].projectRef == id {
@@ -782,6 +559,7 @@ class SessionFlowManager {
     func createTaskGroup(name: String, projectRef: UUID, tagRefs: [UUID] = []) -> TaskGroup {
         let group = TaskGroup(name: name, projectRef: projectRef, tagRefs: tagRefs)
         taskGroups.append(group)
+        modelContext.insert(group)
         saveData()
         return group
     }
@@ -795,7 +573,10 @@ class SessionFlowManager {
     }
     
     func deleteTaskGroup(id: UUID) {
-        taskGroups.removeAll { $0.id == id }
+        if let index = taskGroups.firstIndex(where: { $0.id == id }) {
+            let group = taskGroups.remove(at: index)
+            modelContext.delete(group)
+        }
         // Unset taskGroupRef for sessions in this group
         for i in 0..<sessions.count {
             if sessions[i].taskGroupRef == id {
@@ -829,12 +610,16 @@ class SessionFlowManager {
     func createTag(name: String, colorHex: String) -> Tag {
         let tag = Tag(name: name, colorHex: colorHex)
         tags.append(tag)
+        modelContext.insert(tag)
         saveData()
         return tag
     }
     
     func deleteTag(id: UUID) {
-        tags.removeAll { $0.id == id }
+        if let index = tags.firstIndex(where: { $0.id == id }) {
+            let tag = tags.remove(at: index)
+            modelContext.delete(tag)
+        }
         for i in 0..<sessions.count {
             sessions[i].tagRefs = sessions[i].tagRefs?.filter { $0 != id }
         }
@@ -842,14 +627,18 @@ class SessionFlowManager {
     }
     
     func createGroupTag(name: String, colorHex: String) -> Tag {
-        let tag = Tag(name: name, colorHex: colorHex)
+        let tag = Tag(name: name, colorHex: colorHex, isGroupTag: true)
         groupTags.append(tag)
+        modelContext.insert(tag)
         saveData()
         return tag
     }
     
     func deleteGroupTag(id: UUID) {
-        groupTags.removeAll { $0.id == id }
+        if let index = groupTags.firstIndex(where: { $0.id == id }) {
+            let tag = groupTags.remove(at: index)
+            modelContext.delete(tag)
+        }
         for i in 0..<taskGroups.count {
             taskGroups[i].tagRefs = taskGroups[i].tagRefs?.filter { $0 != id }
         }
@@ -862,6 +651,8 @@ class SessionFlowManager {
             saveData()
         }
     }
+
+
     
     private func loadData() {
         let defaults = UserDefaults.standard
@@ -873,25 +664,82 @@ class SessionFlowManager {
         } else {
             self.showInMenuBar = true
         }
-        if let sessionsData = defaults.data(forKey: "SF_Sessions"),
-           let decoded = try? JSONDecoder().decode([Session].self, from: sessionsData) {
-            self.sessions = decoded
+
+        // Fetch from SwiftData
+        do {
+            let pDesc = FetchDescriptor<Project>(sortBy: [SortDescriptor(\.createdAt)])
+            self.projects = try modelContext.fetch(pDesc)
+            
+            let sDesc = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+            self.sessions = try modelContext.fetch(sDesc)
+            
+            let tgDesc = FetchDescriptor<TaskGroup>(sortBy: [SortDescriptor(\.createdAt)])
+            self.taskGroups = try modelContext.fetch(tgDesc)
+            
+            let tDesc = FetchDescriptor<Tag>(sortBy: [SortDescriptor(\.createdAt)])
+            let allTags = try modelContext.fetch(tDesc)
+            self.tags = allTags.filter { !$0.isGroupTag }
+            self.groupTags = allTags.filter { $0.isGroupTag }
+        } catch {
+            print("Failed to fetch SwiftData: \(error)")
         }
-        if let projectsData = defaults.data(forKey: "SF_Projects"),
-           let decoded = try? JSONDecoder().decode([Project].self, from: projectsData) {
-            self.projects = decoded
-        }
-        if let groupsData = defaults.data(forKey: "SF_TaskGroups"),
-           let decoded = try? JSONDecoder().decode([TaskGroup].self, from: groupsData) {
-            self.taskGroups = decoded
-        }
-        if let tagsData = defaults.data(forKey: "SF_Tags"),
-           let decoded = try? JSONDecoder().decode([Tag].self, from: tagsData) {
-            self.tags = decoded
-        }
-        if let groupTagsData = defaults.data(forKey: "SF_GroupTags"),
-           let decoded = try? JSONDecoder().decode([Tag].self, from: groupTagsData) {
-            self.groupTags = decoded
+
+        // Migration from UserDefaults
+        if self.sessions.isEmpty && self.projects.isEmpty && self.tags.isEmpty && self.taskGroups.isEmpty {
+            var migrated = false
+            if let projectsData = defaults.data(forKey: "SF_Projects"),
+               let decoded = try? JSONDecoder().decode([LegacyProject].self, from: projectsData) {
+                for dp in decoded {
+                    let p = Project(id: dp.id, name: dp.name, colorHex: dp.colorHex, createdAt: dp.createdAt)
+                    self.projects.append(p)
+                    modelContext.insert(p)
+                }
+                migrated = true
+            }
+            if let sessionsData = defaults.data(forKey: "SF_Sessions"),
+               let decoded = try? JSONDecoder().decode([LegacySession].self, from: sessionsData) {
+                for ds in decoded {
+                    let s = Session(id: ds.id, title: ds.title, duration: ds.duration, date: ds.date, notes: ds.notes, projectRef: ds.projectRef, status: ds.status, voiceNoteUrl: ds.voiceNoteUrl, taskGroupRef: ds.taskGroupRef, tagRefs: ds.tagRefs, wasPlanned: ds.wasPlanned, datePlanned: ds.datePlanned)
+                    self.sessions.append(s)
+                    modelContext.insert(s)
+                }
+                migrated = true
+            }
+            if let groupsData = defaults.data(forKey: "SF_TaskGroups"),
+               let decoded = try? JSONDecoder().decode([LegacyTaskGroup].self, from: groupsData) {
+                for dt in decoded {
+                    let tg = TaskGroup(id: dt.id, name: dt.name, projectRef: dt.projectRef, createdAt: dt.createdAt, tagRefs: dt.tagRefs)
+                    self.taskGroups.append(tg)
+                    modelContext.insert(tg)
+                }
+                migrated = true
+            }
+            if let tagsData = defaults.data(forKey: "SF_Tags"),
+               let decoded = try? JSONDecoder().decode([LegacyTag].self, from: tagsData) {
+                for dt in decoded {
+                    let tag = Tag(id: dt.id, name: dt.name, colorHex: dt.colorHex, createdAt: dt.createdAt, isGroupTag: false)
+                    self.tags.append(tag)
+                    modelContext.insert(tag)
+                }
+                migrated = true
+            }
+            if let groupTagsData = defaults.data(forKey: "SF_GroupTags"),
+               let decoded = try? JSONDecoder().decode([LegacyTag].self, from: groupTagsData) {
+                for dt in decoded {
+                    let tag = Tag(id: dt.id, name: dt.name, colorHex: dt.colorHex, createdAt: dt.createdAt, isGroupTag: true)
+                    self.groupTags.append(tag)
+                    modelContext.insert(tag)
+                }
+                migrated = true
+            }
+            if migrated {
+                try? modelContext.save()
+                defaults.removeObject(forKey: "SF_Projects")
+                defaults.removeObject(forKey: "SF_Sessions")
+                defaults.removeObject(forKey: "SF_TaskGroups")
+                defaults.removeObject(forKey: "SF_Tags")
+                defaults.removeObject(forKey: "SF_GroupTags")
+            }
         }
     }
     
@@ -901,37 +749,11 @@ class SessionFlowManager {
         defaults.set(appTheme, forKey: "SF_AppTheme")
         defaults.set(keepTimerOnTop, forKey: "SF_KeepTimerOnTop")
         defaults.set(showInMenuBar, forKey: "SF_ShowInMenuBar")
-        if let encoded = try? JSONEncoder().encode(sessions) {
-            defaults.set(encoded, forKey: "SF_Sessions")
-        }
-        if let encoded = try? JSONEncoder().encode(projects) {
-            defaults.set(encoded, forKey: "SF_Projects")
-        }
-        if let encoded = try? JSONEncoder().encode(taskGroups) {
-            defaults.set(encoded, forKey: "SF_TaskGroups")
-        }
-        if let encoded = try? JSONEncoder().encode(tags) {
-            defaults.set(encoded, forKey: "SF_Tags")
-        }
-        if let encoded = try? JSONEncoder().encode(groupTags) {
-            defaults.set(encoded, forKey: "SF_GroupTags")
-        }
-    }
-}
-
-extension NSMenuItem {
-    static let disableAutomaticMenuIcons: Void = {
-        let originalSelector = #selector(getter: NSMenuItem.image)
-        let customSelector = #selector(NSMenuItem.customImageGetter)
         
-        guard let originalMethod = class_getInstanceMethod(NSMenuItem.self, originalSelector),
-              let customMethod = class_getInstanceMethod(NSMenuItem.self, customSelector) else {
-            return
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save SwiftData: \(error)")
         }
-        method_exchangeImplementations(originalMethod, customMethod)
-    }()
-    
-    @objc func customImageGetter() -> NSImage? {
-        return nil
     }
 }

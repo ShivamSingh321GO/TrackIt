@@ -83,7 +83,8 @@ struct ContentView: View {
                     // Initial titlebar configuration based on current mode
                     configureTitlebar(for: window, isCompact: managerRef.isCompactMode)
                     window.isMovableByWindowBackground = false // Disable system titlebar/background dragging to prevent double-click zoom
-                    window.collectionBehavior = [.fullScreenNone] // Prevent entering fullscreen space to avoid sizing bugs
+                    window.level = .screenSaver // High enough to overlay full-screen spaces
+                    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
                     
                     // Keep titlebar style synchronized on focus changes and resizes
                     NotificationCenter.default.addObserver(
@@ -413,21 +414,14 @@ struct ContentView: View {
             
             if manager.isCompactMode {
                 // Keep window on top so they can work with it visible in any corner
-                window.level = .floating
+                window.level = .screenSaver
                 
                 // Adjust frame to exact compact size
                 let compactSize = NSSize(width: 80, height: 28)
                 window.minSize = compactSize
                 window.maxSize = compactSize
                 
-                let currentFrame = window.frame
-                let newFrame = NSRect(
-                    x: currentFrame.origin.x + (currentFrame.width - compactSize.width),
-                    y: currentFrame.origin.y + (currentFrame.height - compactSize.height),
-                    width: compactSize.width,
-                    height: compactSize.height
-                )
-                
+                let newFrame = self.getTopRightFrame(for: window, size: compactSize)
                 // Hide standard buttons in compact mode
                 window.standardWindowButton(.closeButton)?.isHidden = true
                 window.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -438,8 +432,8 @@ struct ContentView: View {
                 // Disable resizing in compact mode
                 window.styleMask.remove(.resizable)
             } else if manager.currentView == .workspace {
-                // Restore window level
-                window.level = .normal
+                // Keep window on top per user request
+                window.level = .screenSaver
                 
                 // Re-enable resizable style
                 window.styleMask.insert(.resizable)
@@ -456,17 +450,11 @@ struct ContentView: View {
                 let currentFrame = window.frame
                 let newWidth = max(currentFrame.width, workspaceSize.width)
                 let newHeight = max(currentFrame.height, workspaceSize.height)
-                let newFrame = NSRect(
-                    x: currentFrame.origin.x - (newWidth - currentFrame.width),
-                    y: currentFrame.origin.y - (newHeight - currentFrame.height),
-                    width: newWidth,
-                    height: newHeight
-                )
-                
+                let newFrame = self.getTopRightFrame(for: window, size: NSSize(width: newWidth, height: newHeight))
                 window.setFrame(newFrame, display: true, animate: true)
             } else {
-                // Set window level based on keepTimerOnTop setting
-                window.level = manager.keepTimerOnTop ? .floating : .normal
+                // Keep window on top per user request
+                window.level = .screenSaver
                 
                 // Disable resizing in normal timer mode to keep it as a fixed-size widget
                 window.styleMask.remove(.resizable)
@@ -480,14 +468,7 @@ struct ContentView: View {
                 window.minSize = normalSize
                 window.maxSize = normalSize
                 
-                let currentFrame = window.frame
-                let newFrame = NSRect(
-                    x: currentFrame.origin.x - (normalSize.width - currentFrame.width),
-                    y: currentFrame.origin.y - (normalSize.height - currentFrame.height),
-                    width: normalSize.width,
-                    height: normalSize.height
-                )
-                
+                let newFrame = self.getTopRightFrame(for: window, size: normalSize)
                 window.setFrame(newFrame, display: true, animate: true)
             }
             
@@ -506,6 +487,19 @@ struct ContentView: View {
         let secs = Int(time) % 60
         return String(format: "%02d:%02d:%02d", hrs, mins, secs)
     }
+    
+    private func getTopRightFrame(for window: NSWindow, size: NSSize) -> NSRect {
+        let screen = window.screen ?? NSScreen.main ?? NSScreen()
+        let visibleFrame = screen.visibleFrame
+        let padding: CGFloat = 20
+        
+        return NSRect(
+            x: visibleFrame.maxX - size.width - padding,
+            y: visibleFrame.maxY - size.height - padding,
+            width: size.width,
+            height: size.height
+        )
+    }
 }
 
 private func configureTitlebar(for window: NSWindow, isCompact: Bool) {
@@ -519,302 +513,5 @@ private func configureTitlebar(for window: NSWindow, isCompact: Bool) {
         window.titleVisibility = .hidden // Hide title text but keep the bar
         window.titlebarAppearsTransparent = false
         window.styleMask.remove(.fullSizeContentView)
-    }
-}
-
-// MARK: - Window Accessor Helper
-
-struct WindowAccessor: NSViewRepresentable {
-    var onChange: (NSWindow) -> Void
-    
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                onChange(window)
-            }
-        }
-        return view
-    }
-    
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let window = nsView.window {
-            onChange(window)
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-}
-
-// MARK: - Settings Sheet
-
-struct SettingsSheet: View {
-    @Bindable var manager: SessionFlowManager
-    @Environment(\.dismiss) var dismiss
-    
-    let soundOptions = ["Funk", "Hero", "Glass", "Submarine", "Morse", "Sosumi", "Tink", "Ping", "Blow", "Purr"]
-    let themeOptions = ["System", "Light", "Dark"]
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            // Title
-            HStack {
-                Text("Settings")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Spacer()
-            }
-            .padding(.bottom, 5)
-            
-            VStack(alignment: .leading, spacing: 14) {
-                // Sound Picker
-                HStack(spacing: 12) {
-                    Text("Alert sound:")
-                        .font(.body)
-                        .frame(width: 110, alignment: .trailing)
-                    
-                    Picker("", selection: $manager.completionSoundName) {
-                        ForEach(soundOptions, id: \.self) { sound in
-                            Text(sound).tag(sound)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 140)
-                    
-                    Button(action: {
-                        NSSound(named: manager.completionSoundName)?.play()
-                    }) {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                // Theme Picker
-                HStack(spacing: 12) {
-                    Text("Theme:")
-                        .font(.body)
-                        .frame(width: 110, alignment: .trailing)
-                    
-                    Picker("", selection: $manager.appTheme) {
-                        ForEach(themeOptions, id: \.self) { theme in
-                            Text(theme).tag(theme)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 140)
-                }
-                
-                // Checkboxes
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Keep timer on top", isOn: $manager.keepTimerOnTop)
-                        .toggleStyle(.checkbox)
-                    
-                    Toggle("Show in menu bar", isOn: $manager.showInMenuBar)
-                        .toggleStyle(.checkbox)
-                }
-                .padding(.leading, 122)
-            }
-            
-            Spacer()
-            
-            // Footer
-            HStack {
-                Spacer()
-                Button("Done") {
-                    dismiss()
-                    SettingsWindowManager.shared.closeSettings()
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(width: 480, height: 260)
-        .onChange(of: manager.completionSoundName) { oldValue, newValue in
-            NSSound(named: newValue)?.play()
-        }
-    }
-}
-
-// MARK: - Tutorial Sheet
-
-struct TutorialSlide: Identifiable {
-    let id: Int
-    let title: String
-    let description: String
-    let icon: String
-    let color: Color
-}
-
-struct TutorialSheet: View {
-    @Bindable var manager: SessionFlowManager
-    @Environment(\.dismiss) var dismiss
-    @State private var currentSlideIndex = 0
-    
-    let slides = [
-        TutorialSlide(
-            id: 0,
-            title: "Welcome to TrackIt",
-            description: "A premium, minimalist ambient timer that fits perfectly into your macOS workflow, helping you manage and visualize your focus blocks.",
-            icon: "timer",
-            color: .blue
-        ),
-        TutorialSlide(
-            id: 1,
-            title: "Natural Language Input",
-            description: "Simply type durations like '20 mins', '1h 30m', '+10m', or '-5m' in the top bar and press Enter to instantly start or adjust your countdown.",
-            icon: "keyboard",
-            color: .purple
-        ),
-        TutorialSlide(
-            id: 2,
-            title: "Status Bar widget",
-            description: "A compact live timer stays in your macOS menu bar. Click it to quick-start, pause, reset, or open Settings and Tutorials.",
-            icon: "menubar.arrow.up.rectangle",
-            color: .green
-        ),
-        TutorialSlide(
-            id: 3,
-            title: "Workspace & Projects",
-            description: "Switch to the full Workspace view to organize focus sessions by projects, track categories, and log notes to review your productivity history.",
-            icon: "square.grid.2x2.fill",
-            color: .orange
-        )
-    ]
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Slide Content with transition
-            ZStack {
-                let slide = slides[currentSlideIndex]
-                VStack(spacing: 20) {
-                    Image(systemName: slide.icon)
-                        .font(.system(size: 64))
-                        .foregroundColor(slide.color)
-                        .padding()
-                        .background(slide.color.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: slide.color.opacity(0.15), radius: 8, x: 0, y: 4)
-                    
-                    Text(slide.title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text(slide.description)
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.secondary)
-                        .frame(height: 70)
-                        .padding(.horizontal, 20)
-                }
-                .id(currentSlideIndex)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                ))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentSlideIndex)
-            
-            // Page Indicators
-            HStack(spacing: 8) {
-                ForEach(0..<slides.count, id: \.self) { index in
-                    Circle()
-                        .fill(currentSlideIndex == index ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .animation(.easeOut(duration: 0.2), value: currentSlideIndex)
-                }
-            }
-            .padding(.bottom, 24)
-            
-            // Navigation Buttons
-            HStack {
-                if currentSlideIndex > 0 {
-                    Button("Back") {
-                        currentSlideIndex -= 1
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                    .font(.body)
-                } else {
-                    Spacer()
-                        .frame(width: 40)
-                }
-                
-                Spacer()
-                
-                if currentSlideIndex < slides.count - 1 {
-                    Button("Next") {
-                        currentSlideIndex += 1
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-                } else {
-                    Button("Got It") {
-                        dismiss()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
-        }
-        .frame(width: 400, height: 350)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-}
-
-#Preview {
-    ContentView()
-}
-
-// MARK: - Drag Background helper to swallow double clicks
-struct DragBackground: NSViewRepresentable {
-    var color: NSColor
-    
-    func makeNSView(context: Context) -> NSView {
-        return DragNSView(color: color)
-    }
-    
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let dragView = nsView as? DragNSView {
-            dragView.bgColor = color
-            dragView.needsDisplay = true
-        }
-    }
-}
-
-class DragNSView: NSView {
-    var bgColor: NSColor
-    
-    init(color: NSColor) {
-        self.bgColor = color
-        super.init(frame: .zero)
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    override func draw(_ dirtyRect: NSRect) {
-        bgColor.set()
-        dirtyRect.fill()
-    }
-    
-    override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            // Swallow double click to prevent system zoom/minimize actions
-            return
-        }
-        // Perform window dragging
-        self.window?.performDrag(with: event)
     }
 }
