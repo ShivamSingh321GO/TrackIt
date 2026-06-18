@@ -21,7 +21,6 @@ struct WorkspaceView: View {
             return colorScheme == .dark
         }
     }
-    
     @State private var workspaceTab: WorkspaceTab = .dashboard
     @State private var searchText: String = ""
     @State private var searchMode: SearchMode = .sessions
@@ -128,7 +127,7 @@ struct WorkspaceView: View {
                 .padding(12)
             }
             .frame(width: 200)
-            .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+            .background(isDark ? Color(red: 0.08, green: 0.08, blue: 0.10) : Color(white: 0.98))
             
             Divider()
             
@@ -151,12 +150,12 @@ struct WorkspaceView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(NSColor.windowBackgroundColor).allowsHitTesting(false))
+            .background((isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(
             Rectangle()
-                .fill(isDark ? Color.clear : Color.black)
+                .fill(Color.clear)
                 .frame(height: 1),
             alignment: .top
         )
@@ -291,7 +290,7 @@ struct WorkspaceView: View {
                     }
                 }
                 .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                 .cornerRadius(8)
                 
                 // Tag Filters for Sessions
@@ -694,7 +693,7 @@ struct WorkspaceView: View {
                     TextField("e.g. Design Login Screen", text: $plannedSessionTitle)
                         .textFieldStyle(.plain)
                         .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
+                        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                         .cornerRadius(6)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                 }
@@ -705,7 +704,7 @@ struct WorkspaceView: View {
                     TextField("e.g. 45 min, 1h 30m", text: $plannedSessionDurationText)
                         .textFieldStyle(.plain)
                         .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
+                        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                         .cornerRadius(6)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                 }
@@ -719,7 +718,7 @@ struct WorkspaceView: View {
                             TextField("New Project Name", text: $newProjectNameInSheet)
                                 .textFieldStyle(.plain)
                                 .padding(8)
-                                .background(Color(NSColor.controlBackgroundColor))
+                                .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                 .cornerRadius(6)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
@@ -816,7 +815,7 @@ struct WorkspaceView: View {
                                 TextField(isEditingExistingGroupInSheet ? "Edit Group Name" : "New Group Name", text: $newGroupNameInSheet)
                                     .textFieldStyle(.plain)
                                     .padding(8)
-                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                     .cornerRadius(6)
                                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                                 
@@ -849,7 +848,7 @@ struct WorkspaceView: View {
                                             TextField("Tag name (e.g. core, experimental)", text: $newGroupTagNameInSheet)
                                                 .textFieldStyle(.plain)
                                                 .padding(6)
-                                                .background(Color(NSColor.controlBackgroundColor))
+                                                .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                                 .cornerRadius(4)
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 4)
@@ -1038,7 +1037,7 @@ struct WorkspaceView: View {
                             TextField("Tag name", text: $newTagNameInSheet)
                                 .textFieldStyle(.plain)
                                 .padding(6)
-                                .background(Color(NSColor.controlBackgroundColor))
+                                .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                 .cornerRadius(4)
                                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                             
@@ -1148,7 +1147,7 @@ struct WorkspaceView: View {
                     TextField("e.g. Mobile App, Website redesign", text: $newProjectName)
                         .textFieldStyle(.plain)
                         .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
+                        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                         .cornerRadius(6)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
                 }

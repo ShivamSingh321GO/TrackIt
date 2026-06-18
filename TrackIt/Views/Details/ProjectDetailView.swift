@@ -12,6 +12,13 @@ struct ProjectDetailView: View {
     @Bindable var manager: SessionFlowManager
     let onBack: () -> Void
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
+    
     @State private var showPlanSessionSheet: Bool = false
     @State private var showAddTaskGroupSheet: Bool = false
     @State private var newTaskGroupName: String = ""
@@ -349,6 +356,13 @@ struct TaskGroupCard: View {
     let onPlanSession: () -> Void
     let onDelete: () -> Void
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
+    
     @State private var isPlanHovered = false
     @State private var isDeleteHovered = false
     
@@ -484,7 +498,7 @@ struct TaskGroupCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.3))
+                .fill(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -507,7 +521,8 @@ struct TaskGroupCard: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
                 .font(.system(size: 14))
-                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+                .background(Circle().fill(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white))
+                .shadow(color: .green.opacity(0.4), radius: 4)
         } else if s.status == .running {
             Circle()
                 .fill(Color.accentColor)
@@ -517,10 +532,11 @@ struct TaskGroupCard: View {
                         .stroke(Color.accentColor.opacity(0.3), lineWidth: 3)
                         .scaleEffect(1.2)
                 )
+                .shadow(color: .accentColor.opacity(0.6), radius: 6)
         } else {
             Circle()
                 .stroke(Color.secondary.opacity(0.4), lineWidth: 2)
-                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+                .background(Circle().fill(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white))
                 .frame(width: 10, height: 10)
         }
     }
@@ -533,6 +549,13 @@ struct SessionRow: View {
     let manager: SessionFlowManager
     var showDot: Bool = true
     var projectId: UUID? = nil
+    
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false

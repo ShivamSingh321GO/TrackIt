@@ -5,6 +5,9 @@ struct InsightCard: View {
     let value: String
     let icon: String
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool { return colorScheme == .dark }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -21,7 +24,7 @@ struct InsightCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
     }
@@ -32,6 +35,9 @@ struct StatCard: View {
     let value: String
     let icon: String
     var color: Color = .accentColor
+    
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool { return colorScheme == .dark }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -51,7 +57,7 @@ struct StatCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

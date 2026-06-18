@@ -6,6 +6,13 @@ struct ProjectCard: View {
     let onSelect: () -> Void
     let onPlanSession: () -> Void
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
+    
     @State private var isPlanHovered = false
     
     var body: some View {
@@ -86,7 +93,7 @@ struct ProjectCard: View {
             .padding(.top, 4)
         }
         .padding(16)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)

@@ -12,16 +12,6 @@ struct ContentView: View {
     @State private var manager = SessionFlowManager()
     @Environment(\.colorScheme) var colorScheme
     
-    @State private var isPlayHovered = false
-    @State private var isResetHovered = false
-    @State private var isStopHovered = false
-    @State private var isWorkspaceHovered = false
-    @State private var isNotesHovered = false
-    @State private var showNotesPopover = false
-    
-    @State private var appWindow: NSWindow? = nil
-    @State private var resizeWorkItem: DispatchWorkItem? = nil
-    
     var isDark: Bool {
         if manager.appTheme == "Dark" {
             return true
@@ -32,9 +22,19 @@ struct ContentView: View {
         }
     }
     
+    @State private var isPlayHovered = false
+    @State private var isResetHovered = false
+    @State private var isStopHovered = false
+    @State private var isWorkspaceHovered = false
+    @State private var isNotesHovered = false
+    @State private var showNotesPopover = false
+    
+    @State private var appWindow: NSWindow? = nil
+    @State private var resizeWorkItem: DispatchWorkItem? = nil
+    
     var body: some View {
         ZStack {
-            DragBackground(color: isDark ? NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0) : NSColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1.0))
+            DragBackground(color: isDark ? NSColor(red: 0.06, green: 0.06, blue: 0.08, alpha: 1.0) : NSColor.white)
             
             Group {
                 if manager.currentView == .timer {
@@ -161,8 +161,8 @@ struct ContentView: View {
                         )
                         .textFieldStyle(.plain)
                         .font(.system(size: geometry.size.width < 180 ? 10 : 13, weight: .regular))
-                        .foregroundColor(isDark ? .white : .black)
-                        .foregroundStyle(isDark ? .white : .black)
+                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .onSubmit {
                             manager.submitTimerInput()
                         }
@@ -170,7 +170,7 @@ struct ContentView: View {
                         if !manager.inputTimerText.isEmpty && geometry.size.width >= 160 {
                             Button(action: { manager.inputTimerText = "" }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(isDark ? .white : .black)
+                                    .foregroundColor(.primary)
                             }
                             .buttonStyle(.plain)
                         }
@@ -189,7 +189,8 @@ struct ContentView: View {
                             }) {
                                 Image(systemName: manager.isRunning ? "pause.fill" : "play.fill")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(manager.isRunning ? .accentColor : (isDark ? .white : .black))
+                                    .foregroundColor(manager.isRunning ? .accentColor : .primary)
+                                    .shadow(color: manager.isRunning ? .accentColor.opacity(0.5) : .clear, radius: 4)
                             }
                             .buttonStyle(.plain)
                             .onHover { isPlayHovered = $0 }
@@ -202,7 +203,7 @@ struct ContentView: View {
                                 }) {
                                     Image(systemName: "stop.fill")
                                         .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(isDark ? .white : .black)
+                                        .foregroundColor(.primary)
                                 }
                                 .buttonStyle(.plain)
                                 .onHover { isStopHovered = $0 }
@@ -215,7 +216,7 @@ struct ContentView: View {
                             }) {
                                 Image(systemName: "arrow.clockwise")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(isDark ? .white : .black)
+                                    .foregroundColor(.primary)
                             }
                             .buttonStyle(.plain)
                             .onHover { isResetHovered = $0 }
@@ -227,7 +228,8 @@ struct ContentView: View {
                             }) {
                                 Image(systemName: "square.and.pencil")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? (isDark ? .white : .black) : .accentColor)
+                                    .foregroundColor(manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .primary : .accentColor)
+                                    .shadow(color: manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .clear : .accentColor.opacity(0.5), radius: 4)
                             }
                             .buttonStyle(.plain)
                             .onHover { isNotesHovered = $0 }
@@ -283,7 +285,7 @@ struct ContentView: View {
                                 }) {
                                     Image(systemName: "square.grid.2x2")
                                         .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(isDark ? .white : .black)
+                                        .foregroundColor(.primary)
                                 }
                                 .buttonStyle(.plain)
                                 .onHover { isWorkspaceHovered = $0 }
@@ -293,20 +295,20 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, geometry.size.width < 250 ? 10 : 20)
                     .padding(.vertical, geometry.size.width < 250 ? 6 : 10)
-                    .background((isDark ? Color(red: 0.18, green: 0.18, blue: 0.22) : Color(red: 0.80, green: 0.81, blue: 0.87)).allowsHitTesting(false)) // Match user's color exactly
+                    .background((isDark ? Color(red: 0.11, green: 0.11, blue: 0.15) : Color(white: 0.96)).allowsHitTesting(false)) 
                     
                     Divider()
                 
                 // Large Digit Timer Center Display
                 ZStack {
-                    (isDark ? Color(red: 0.11, green: 0.11, blue: 0.13) : Color(red: 0.95, green: 0.96, blue: 0.98)).allowsHitTesting(false)
+                    (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false)
                     
                     VStack(spacing: 8) {
                         Text(formatTime(manager.timeRemaining))
                             .font(.system(size: min(48, geometry.size.width / 5.5), weight: .medium, design: .default))
                             .monospacedDigit()
-                            .foregroundColor(isDark ? Color(red: 0.90, green: 0.90, blue: 0.95) : Color(red: 0.23, green: 0.23, blue: 0.27)) // Adaptive Charcoal/Light Gray Text
-                            .shadow(color: Color.black.opacity(0.03), radius: 2, x: 0, y: 1)
+                            .foregroundColor(.primary)
+                            .shadow(color: .accentColor.opacity(0.35), radius: 8, x: 0, y: 0)
                             .contentShape(Rectangle())
 
                         

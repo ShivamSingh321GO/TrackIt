@@ -4,6 +4,13 @@ struct PlannedSessionRow: View {
     let session: Session
     let manager: SessionFlowManager
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -94,7 +101,7 @@ struct PlannedSessionRow: View {
             .buttonStyle(.plain)
         }
         .padding(12)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
     }
@@ -127,6 +134,13 @@ struct PlannedSessionRow: View {
 struct CompletedSessionRow: View {
     let session: Session
     let manager: SessionFlowManager
+    
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
     
     @State private var isNotesExpanded: Bool = false
     @State private var isHovered: Bool = false
@@ -286,7 +300,7 @@ struct CompletedSessionRow: View {
                                 .scrollContentBackground(.hidden)
                                 .frame(minHeight: 60, maxHeight: 120)
                                 .padding(6)
-                                .background(Color(NSColor.controlBackgroundColor))
+                                .background(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
                                 .cornerRadius(6)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
@@ -344,7 +358,7 @@ struct CompletedSessionRow: View {
                 )
             }
         }
-        .background(Color(NSColor.controlBackgroundColor).opacity(isHovered && (hasNotes || isEditingNotes) ? 0.8 : 0.6))
+        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)).opacity(isHovered && (hasNotes || isEditingNotes) ? 1.0 : 0.6))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

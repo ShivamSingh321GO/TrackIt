@@ -24,12 +24,14 @@ struct SidebarButton: View {
             .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : (isHovered ? Color.secondary.opacity(0.08) : Color.clear))
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+                    .shadow(color: isSelected ? .accentColor.opacity(0.3) : .clear, radius: 4)
             )
         }
         .buttonStyle(.plain)
         .foregroundColor(isSelected ? .accentColor : .primary)
         .padding(.horizontal, 8)
+        .shadow(color: isSelected ? .accentColor.opacity(0.4) : .clear, radius: 2)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.1), value: isSelected)
         .animation(.easeInOut(duration: 0.1), value: isHovered)

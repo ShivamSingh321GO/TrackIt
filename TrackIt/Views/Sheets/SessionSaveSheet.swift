@@ -67,7 +67,7 @@ struct SessionSaveSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(isDark ? Color(red: 0.18, green: 0.18, blue: 0.22) : Color(red: 0.80, green: 0.81, blue: 0.87))
+            .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(white: 0.98))
             
             Divider()
             
@@ -84,7 +84,7 @@ struct SessionSaveSheet: View {
                         TextField("e.g. Database Design, Fixed auth bug", text: $title)
                             .textFieldStyle(.plain)
                             .padding(10)
-                            .background(Color(NSColor.controlBackgroundColor))
+                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -141,7 +141,7 @@ struct SessionSaveSheet: View {
                                 TextField("New Project Name", text: $newProjectName)
                                     .textFieldStyle(.plain)
                                     .padding(8)
-                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                     .cornerRadius(6)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
@@ -229,7 +229,7 @@ struct SessionSaveSheet: View {
                                         TextField(isEditingExistingGroup ? "Edit Group Name" : "New Group Name (e.g. Frontend, Backend)", text: $newGroupName)
                                             .textFieldStyle(.plain)
                                             .padding(8)
-                                            .background(Color(NSColor.controlBackgroundColor))
+                                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                             .cornerRadius(6)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 6)
@@ -265,7 +265,7 @@ struct SessionSaveSheet: View {
                                                     TextField("Tag name (e.g. core, experimental)", text: $newGroupTagName)
                                                         .textFieldStyle(.plain)
                                                         .padding(6)
-                                                        .background(Color(NSColor.controlBackgroundColor))
+                                                        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                                         .cornerRadius(4)
                                                         .overlay(
                                                             RoundedRectangle(cornerRadius: 4)
@@ -466,7 +466,7 @@ struct SessionSaveSheet: View {
                                 TextField("Tag name (e.g. database, UI, bug fix)", text: $newTagName)
                                     .textFieldStyle(.plain)
                                     .padding(8)
-                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                     .cornerRadius(6)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
@@ -542,7 +542,7 @@ struct SessionSaveSheet: View {
                             .font(.system(.body))
                             .padding(8)
                             .frame(minHeight: 100, maxHeight: 150)
-                            .background(Color(NSColor.controlBackgroundColor))
+                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -585,7 +585,7 @@ struct SessionSaveSheet: View {
         .padding(24)
         }
         .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.11, green: 0.11, blue: 0.13) : Color(red: 0.95, green: 0.96, blue: 0.98))
+        .background(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
         .preferredColorScheme(manager.appTheme == "Dark" ? .dark : (manager.appTheme == "Light" ? .light : nil))
         .onAppear {
             if let activeId = manager.activeSessionId,

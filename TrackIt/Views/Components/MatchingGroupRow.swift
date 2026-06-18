@@ -5,6 +5,13 @@ struct MatchingGroupRow: View {
     let manager: SessionFlowManager
     let onSelect: () -> Void
     
+    @Environment(\.colorScheme) var colorScheme
+    var isDark: Bool {
+        if manager.appTheme == "Dark" { return true }
+        if manager.appTheme == "Light" { return false }
+        return colorScheme == .dark
+    }
+    
     @State private var isHovered = false
     
     var body: some View {
@@ -78,7 +85,7 @@ struct MatchingGroupRow: View {
             .buttonStyle(.plain)
         }
         .padding(12)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)).opacity(0.6))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
