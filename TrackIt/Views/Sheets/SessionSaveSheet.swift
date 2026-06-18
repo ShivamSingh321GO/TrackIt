@@ -11,6 +11,18 @@ struct SessionSaveSheet: View {
     @Bindable var manager: SessionFlowManager
     let duration: TimeInterval
     
+    @Environment(\.colorScheme) var colorScheme
+    
+    var isDark: Bool {
+        if manager.appTheme == "Dark" {
+            return true
+        } else if manager.appTheme == "Light" {
+            return false
+        } else {
+            return colorScheme == .dark
+        }
+    }
+    
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var selectedProjectId: UUID? = nil
@@ -41,7 +53,7 @@ struct SessionSaveSheet: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             // Header
             HStack {
                 Text("Complete Session")
@@ -53,9 +65,14 @@ struct SessionSaveSheet: View {
                     .bold()
                     .foregroundColor(.secondary)
             }
-            .padding(.bottom, 5)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(isDark ? Color(red: 0.18, green: 0.18, blue: 0.22) : Color(red: 0.80, green: 0.81, blue: 0.87))
             
-            ScrollView {
+            Divider()
+            
+            VStack(spacing: 20) {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Session Title Input
                     VStack(alignment: .leading, spacing: 6) {
@@ -566,8 +583,10 @@ struct SessionSaveSheet: View {
             }
         }
         .padding(24)
+        }
         .frame(maxWidth: .infinity)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+        .background(isDark ? Color(red: 0.11, green: 0.11, blue: 0.13) : Color(red: 0.95, green: 0.96, blue: 0.98))
+        .preferredColorScheme(manager.appTheme == "Dark" ? .dark : (manager.appTheme == "Light" ? .light : nil))
         .onAppear {
             if let activeId = manager.activeSessionId,
                let activeSession = manager.sessions.first(where: { $0.id == activeId }) {

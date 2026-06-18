@@ -10,6 +10,18 @@ import SwiftUI
 struct WorkspaceView: View {
     @Bindable var manager: SessionFlowManager
     
+    @Environment(\.colorScheme) var colorScheme
+    
+    var isDark: Bool {
+        if manager.appTheme == "Dark" {
+            return true
+        } else if manager.appTheme == "Light" {
+            return false
+        } else {
+            return colorScheme == .dark
+        }
+    }
+    
     @State private var workspaceTab: WorkspaceTab = .dashboard
     @State private var searchText: String = ""
     @State private var searchMode: SearchMode = .sessions
@@ -142,6 +154,12 @@ struct WorkspaceView: View {
             .background(Color(NSColor.windowBackgroundColor).allowsHitTesting(false))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(
+            Rectangle()
+                .fill(isDark ? Color.clear : Color.black)
+                .frame(height: 1),
+            alignment: .top
+        )
         .sheet(isPresented: $showAddPlannedSessionSheet) {
             addPlannedSessionSheet
         }

@@ -23,10 +23,15 @@ class StatusItemTarget: NSObject {
     weak var manager: SessionFlowManager? = nil
     
     @objc func showAppWindow() {
-        NSApp.activate(ignoringOtherApps: true)
+        // Bring the floating panel to front without stealing focus from the user's active app
         for window in NSApp.windows {
-            window.makeKeyAndOrderFront(nil)
+            if window is FloatingPanel {
+                window.orderFrontRegardless()
+            } else {
+                window.makeKeyAndOrderFront(nil)
+            }
         }
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     @objc func openSettings() {

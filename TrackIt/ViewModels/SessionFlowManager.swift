@@ -33,7 +33,6 @@ class SessionFlowManager {
     var currentView: AppView = .timer
     var showSaveSheet: Bool = false
     var timerTypeString: String = "Stopwatch" // "Countdown" or "Stopwatch"
-    var isCompactMode: Bool = false
     var activeSessionId: UUID? = nil
     var activeNotes: String = ""
     
