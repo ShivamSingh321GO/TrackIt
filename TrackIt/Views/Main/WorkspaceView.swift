@@ -21,12 +21,10 @@ struct WorkspaceView: View {
             return colorScheme == .dark
         }
     }
-    @State private var workspaceTab: WorkspaceTab = .dashboard
     @State private var searchText: String = ""
     @State private var searchMode: SearchMode = .sessions
     @State private var selectedFilterTagIds: Set<UUID> = []
     @State private var selectedFilterGroupTagIds: Set<UUID> = []
-    @State private var selectedProject: Project? = nil
     
     // Inline creation for planned session
     @State private var showAddPlannedSessionSheet: Bool = false
@@ -55,11 +53,7 @@ struct WorkspaceView: View {
     @State private var newProjectName: String = ""
     @State private var newProjectColorHex: String = Project.defaultColors.first ?? "#4A90E2"
     
-    enum WorkspaceTab {
-        case dashboard
-        case search
-        case projects
-    }
+
     
     enum SearchMode {
         case sessions
@@ -85,19 +79,19 @@ struct WorkspaceView: View {
                     .padding(.bottom, 8)
                 
                 // Sidebar Buttons
-                SidebarButton(title: "Dashboard", icon: "gauge.with.needle", isSelected: workspaceTab == .dashboard) {
-                    selectedProject = nil
-                    workspaceTab = .dashboard
+                SidebarButton(title: "Dashboard", icon: "gauge.with.needle", isSelected: manager.activeWorkspaceTab == .dashboard) {
+                    manager.activeWorkspaceProjectId = nil
+                    manager.activeWorkspaceTab = .dashboard
                 }
                 
-                SidebarButton(title: "Projects", icon: "folder", isSelected: workspaceTab == .projects) {
-                    selectedProject = nil
-                    workspaceTab = .projects
+                SidebarButton(title: "Projects", icon: "folder", isSelected: manager.activeWorkspaceTab == .projects) {
+                    manager.activeWorkspaceProjectId = nil
+                    manager.activeWorkspaceTab = .projects
                 }
                 
-                SidebarButton(title: "Search & Insights", icon: "magnifyingglass", isSelected: workspaceTab == .search) {
-                    selectedProject = nil
-                    workspaceTab = .search
+                SidebarButton(title: "Search & Insights", icon: "magnifyingglass", isSelected: manager.activeWorkspaceTab == .search) {
+                    manager.activeWorkspaceProjectId = nil
+                    manager.activeWorkspaceTab = .search
                 }
                 
 
@@ -133,15 +127,16 @@ struct WorkspaceView: View {
             
             // Main Content Area
             VStack(spacing: 0) {
-                switch workspaceTab {
+                switch manager.activeWorkspaceTab {
                 case .dashboard:
                     dashboardTab
                 case .search:
                     searchTab
                 case .projects:
-                    if let project = selectedProject {
+                    if let projectId = manager.activeWorkspaceProjectId,
+                       let project = manager.projects.first(where: { $0.id == projectId }) {
                         ProjectDetailView(project: project, manager: manager) {
-                            selectedProject = nil
+                            manager.activeWorkspaceProjectId = nil
                         }
                     } else {
                         projectsTab
@@ -501,8 +496,8 @@ struct WorkspaceView: View {
                             ForEach(results) { group in
                                 MatchingGroupRow(group: group, manager: manager, onSelect: {
                                     if let proj = manager.projects.first(where: { $0.id == group.projectRef }) {
-                                        selectedProject = proj
-                                        workspaceTab = .projects
+                                        manager.activeWorkspaceProjectId = proj.id
+                                        manager.activeWorkspaceTab = .projects
                                     }
                                 })
                             }
@@ -546,7 +541,7 @@ struct WorkspaceView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280))], spacing: 16) {
                         ForEach(manager.projects) { project in
                             ProjectCard(project: project, manager: manager, onSelect: {
-                                selectedProject = project
+                                manager.activeWorkspaceProjectId = project.id
                             }, onPlanSession: {
                                 plannedSessionProjectId = project.id
                                 plannedSessionTitle = ""

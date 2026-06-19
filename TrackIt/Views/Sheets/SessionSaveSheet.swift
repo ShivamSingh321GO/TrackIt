@@ -575,7 +575,22 @@ struct SessionSaveSheet: View {
                         duration: duration
                     )
                     manager.activeNotes = ""
+                    
+                    // Navigate to the project where the session was saved, or dashboard for standalone
+                    if let projectId = selectedProjectId {
+                        manager.activeWorkspaceTab = .projects
+                        manager.activeWorkspaceProjectId = projectId
+                    } else {
+                        manager.activeWorkspaceTab = .dashboard
+                        manager.activeWorkspaceProjectId = nil
+                    }
+                    
                     SaveSheetWindowManager.shared.closeSaveSheet()
+                    
+                    // Switch to workspace view
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                        manager.currentView = .workspace
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

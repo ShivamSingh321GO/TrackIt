@@ -31,6 +31,8 @@ class SessionFlowManager {
     
     // UI Navigation State
     var currentView: AppView = .timer
+    var activeWorkspaceTab: WorkspaceTab = .dashboard
+    var activeWorkspaceProjectId: UUID? = nil
     var showSaveSheet: Bool = false
     var timerTypeString: String = "Stopwatch" // "Countdown" or "Stopwatch"
     var activeSessionId: UUID? = nil

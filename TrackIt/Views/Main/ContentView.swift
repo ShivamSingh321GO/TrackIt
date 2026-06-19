@@ -139,10 +139,7 @@ struct ContentView: View {
         }
         .onChange(of: manager.currentView) { oldValue, newValue in
             guard let window = appWindow else { return }
-            // Only handle timer transition asynchronously; workspace is handled synchronously pre-switch
-            if newValue == .timer {
-                updateWindowConstraints(window: window)
-            }
+            updateWindowConstraints(window: window)
         }
     }
     

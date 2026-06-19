@@ -106,3 +106,9 @@ enum AppView {
     case timer
     case workspace
 }
+
+enum WorkspaceTab {
+    case dashboard
+    case search
+    case projects
+}
