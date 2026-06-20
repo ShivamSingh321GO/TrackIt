@@ -43,9 +43,8 @@ class StatusItemTarget: NSObject {
     
     @objc func openTutorial() {
         guard let manager = manager else { return }
-        showAppWindow()
         DispatchQueue.main.async {
-            manager.showTutorialSheet = true
+            TutorialWindowManager.shared.showTutorial(manager: manager)
         }
     }
     
@@ -99,6 +98,7 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
         newWindow.center()
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
+        newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
         
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)
@@ -149,6 +149,7 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
         newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
+        newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
         
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)
@@ -167,6 +168,60 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         self.window = nil
         DispatchQueue.main.async { [weak self] in
             self?.onDismissManager?.showSaveSheet = false
+        }
+    }
+}
+
+class TutorialWindowManager: NSObject, NSWindowDelegate {
+    static let shared = TutorialWindowManager()
+    private var window: NSWindow?
+    weak var onDismissManager: SessionFlowManager?
+    
+    func showTutorial(manager: SessionFlowManager) {
+        if let window = window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        onDismissManager = manager
+        
+        let tutorialView = TutorialSheet(manager: manager)
+        let hostingView = NSHostingView(rootView: tutorialView)
+        
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "Tutorial"
+        newWindow.contentView = hostingView
+        newWindow.center()
+        newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
+        newWindow.titleVisibility = .hidden
+        newWindow.titlebarAppearsTransparent = true
+        newWindow.backgroundColor = NSColor.windowBackgroundColor
+        newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
+        
+        self.window = newWindow
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func closeTutorial() {
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.close()
+            self?.window = nil
+            self?.onDismissManager?.showTutorialSheet = false
+        }
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        self.window = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.onDismissManager?.showTutorialSheet = false
         }
     }
 }

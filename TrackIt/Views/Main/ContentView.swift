@@ -61,10 +61,6 @@ struct ContentView: View {
                 SaveSheetWindowManager.shared.closeSaveSheet()
             }
         }
-
-        .sheet(isPresented: $manager.showTutorialSheet) {
-            TutorialSheet(manager: manager)
-        }
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: manager.currentView)
         .background(
             WindowAccessor { window in
@@ -92,13 +88,10 @@ struct ContentView: View {
                     ) { _ in
                         configureTitlebar(for: window)
                     }
-                    NotificationCenter.default.addObserver(
-                        forName: NSWindow.didResizeNotification,
-                        object: window,
-                        queue: .main
-                    ) { _ in
-                        configureTitlebar(for: window)
-                    }
+                    // NOTE: Do NOT observe didResizeNotification here.
+                    // configureTitlebar modifies styleMask, which triggers another
+                    // resize/constraint pass and causes a re-entrancy crash when
+                    // dragging the window.
                     
                     // Listen for green zoom button clicks to transition to workspace
                     NotificationCenter.default.addObserver(
@@ -410,6 +403,10 @@ struct ContentView: View {
                 
                 // Draggable by background in workspace too
                 window.isMovableByWindowBackground = true
+                
+                // Enable full screen capability for the green button
+                window.collectionBehavior.remove(.fullScreenAuxiliary)
+                window.collectionBehavior.insert(.fullScreenPrimary)
             } else {
                 // Normal timer mode — keep .resizable so the green zoom button stays active
                 window.styleMask.insert(.resizable)
@@ -428,6 +425,10 @@ struct ContentView: View {
                 
                 // Draggable by clicking anywhere on background
                 window.isMovableByWindowBackground = true
+                
+                // Disable full screen in timer mode, keep it as overlay
+                window.collectionBehavior.remove(.fullScreenPrimary)
+                window.collectionBehavior.insert(.fullScreenAuxiliary)
             }
             
             // Ensure titlebar style matches the current mode
@@ -447,7 +448,9 @@ struct ContentView: View {
     }
     
     private func getTopRightFrame(for window: NSWindow, size: NSSize) -> NSRect {
-        let screen = window.screen ?? NSScreen.main ?? NSScreen()
+        guard let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first else {
+            return NSRect(x: 100, y: 100, width: size.width, height: size.height)
+        }
         let visibleFrame = screen.visibleFrame
         let padding: CGFloat = 20
         
@@ -464,5 +467,9 @@ private func configureTitlebar(for window: NSWindow) {
     // Normal/Workspace mode: standard native macOS title bar with traffic lights
     window.titleVisibility = .hidden // Hide title text but keep the bar
     window.titlebarAppearsTransparent = false
-    window.styleMask.remove(.fullSizeContentView)
+    // Only mutate styleMask if it actually contains the flag to avoid
+    // triggering an unnecessary constraint/layout pass.
+    if window.styleMask.contains(.fullSizeContentView) {
+        window.styleMask.remove(.fullSizeContentView)
+    }
 }

@@ -16,9 +16,9 @@ struct WindowAccessor: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
-        if let window = nsView.window {
-            onChange(window)
-        }
+        // Intentionally empty – onChange is fired once in makeNSView.
+        // Re-firing it here on every SwiftUI re-render would re-trigger
+        // updateWindowConstraints during active constraint passes and crash.
     }
 }
 
