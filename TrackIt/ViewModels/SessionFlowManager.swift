@@ -78,7 +78,7 @@ class SessionFlowManager {
             
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             self.modelContainer = container
-            self.modelContext = ModelContext(container)
+            self.modelContext = container.mainContext
             
             // Print the SwiftData SQLite database path so you can verify it on your Mac
             let url = modelConfiguration.url

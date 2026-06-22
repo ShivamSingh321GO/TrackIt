@@ -590,10 +590,8 @@ struct SessionSaveSheet: View {
                             manager.activeWorkspaceProjectId = nil
                         }
                         
-                        // Switch to workspace view
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                            manager.currentView = .workspace
-                        }
+                        // Request secure transition to workspace view
+                        NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
                     }
                 }
                 .buttonStyle(.borderedProminent)

@@ -93,14 +93,10 @@ struct ContentView: View {
                     // resize/constraint pass and causes a re-entrancy crash when
                     // dragging the window.
                     
-                    // Listen for green zoom button clicks to transition to workspace
-                    NotificationCenter.default.addObserver(
-                        forName: FloatingPanel.zoomRequestedNotification,
-                        object: window,
-                        queue: .main
-                    ) { _ in
+                    let transitionHandler: (Notification) -> Void = { _ in
                         guard let window = self.appWindow else { return }
-                        // Expand to workspace size first
+                        guard self.manager.currentView != .workspace else { return }
+                        // Expand to workspace size safely BEFORE state changes
                         window.styleMask.insert(.resizable)
                         let workspaceSize = NSSize(width: 850, height: 550)
                         window.minSize = workspaceSize
@@ -121,6 +117,22 @@ struct ContentView: View {
                             self.manager.currentView = .workspace
                         }
                     }
+                    
+                    // Listen for green zoom button clicks to transition to workspace
+                    NotificationCenter.default.addObserver(
+                        forName: FloatingPanel.zoomRequestedNotification,
+                        object: window,
+                        queue: .main,
+                        using: transitionHandler
+                    )
+                    
+                    // Listen for app-wide workspace transition requests (e.g. from Save Sheet)
+                    NotificationCenter.default.addObserver(
+                        forName: Notification.Name("TransitionToWorkspace"),
+                        object: nil,
+                        queue: .main,
+                        using: transitionHandler
+                    )
                     
                     updateWindowConstraints(window: window)
                 }
@@ -251,27 +263,7 @@ struct ContentView: View {
                             if geometry.size.width >= 200 {
                                 // Workspace Toggle Button
                                 Button(action: {
-                                    if let window = appWindow {
-                                        window.styleMask.insert(.resizable)
-                                        let workspaceSize = NSSize(width: 850, height: 550)
-                                        window.minSize = workspaceSize
-                                        window.maxSize = NSSize(width: 10000, height: 10000)
-                                        
-                                        let currentFrame = window.frame
-                                        let newWidth = max(currentFrame.width, workspaceSize.width)
-                                        let newHeight = max(currentFrame.height, workspaceSize.height)
-                                        let newFrame = NSRect(
-                                            x: currentFrame.origin.x - (newWidth - currentFrame.width),
-                                            y: currentFrame.origin.y - (newHeight - currentFrame.height),
-                                            width: newWidth,
-                                            height: newHeight
-                                        )
-                                        window.setFrame(newFrame, display: true, animate: true)
-                                    }
-                                    
-                                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                                        manager.currentView = .workspace
-                                    }
+                                    NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
                                 }) {
                                     Image(systemName: "square.grid.2x2")
                                         .font(.system(size: 13, weight: .semibold))
@@ -394,12 +386,6 @@ struct ContentView: View {
                 let workspaceSize = NSSize(width: 850, height: 550)
                 window.minSize = workspaceSize
                 window.maxSize = NSSize(width: 10000, height: 10000)
-                
-                let currentFrame = window.frame
-                let newWidth = max(currentFrame.width, workspaceSize.width)
-                let newHeight = max(currentFrame.height, workspaceSize.height)
-                let newFrame = self.getTopRightFrame(for: window, size: NSSize(width: newWidth, height: newHeight))
-                window.setFrame(newFrame, display: true, animate: true)
                 
                 // Draggable by background in workspace too
                 window.isMovableByWindowBackground = true
