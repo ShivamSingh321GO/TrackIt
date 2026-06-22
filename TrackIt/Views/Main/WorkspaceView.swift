@@ -52,8 +52,18 @@ struct WorkspaceView: View {
     @State private var showAddProjectSheet: Bool = false
     @State private var newProjectName: String = ""
     @State private var newProjectColorHex: String = Project.defaultColors.first ?? "#4A90E2"
+    @State private var projectSearchText: String = ""
+    @State private var projectSortOption: ProjectSortOption = .newest
     
-
+    enum ProjectSortOption: String, CaseIterable, Identifiable {
+        case newest = "Newest"
+        case oldest = "Oldest"
+        case nameAZ = "Name (A-Z)"
+        case nameZA = "Name (Z-A)"
+        case mostTimeSpent = "Most Time Spent"
+        
+        var id: String { self.rawValue }
+    }
     
     enum SearchMode {
         case sessions
@@ -524,6 +534,47 @@ struct WorkspaceView: View {
                     }
                     Spacer()
                     
+                    // Search Bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Search projects, groups, sessions...", text: $projectSearchText)
+                            .textFieldStyle(.plain)
+                            .frame(width: 220)
+                        
+                        if !projectSearchText.isEmpty {
+                            Button(action: {
+                                projectSearchText = ""
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                    )
+                    
+                    // Sort Menu
+                    Menu {
+                        Picker("Sort By", selection: $projectSortOption) {
+                            ForEach(ProjectSortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.title2)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 30)
+                    
                     Button(action: { showAddProjectSheet = true }) {
                         HStack {
                             Image(systemName: "plus")
@@ -537,9 +588,12 @@ struct WorkspaceView: View {
                 if manager.projects.isEmpty {
                     Text("No projects configured.")
                         .foregroundColor(.secondary)
+                } else if filteredProjects().isEmpty {
+                    Text("No projects found matching \"\\(projectSearchText)\".")
+                        .foregroundColor(.secondary)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280))], spacing: 16) {
-                        ForEach(manager.projects) { project in
+                        ForEach(filteredProjects()) { project in
                             ProjectCard(project: project, manager: manager, onSelect: {
                                 manager.activeWorkspaceProjectId = project.id
                             }, onPlanSession: {
@@ -559,6 +613,52 @@ struct WorkspaceView: View {
 
     
     // MARK: - Helpers & Data Computations
+    
+    private func filteredProjects() -> [Project] {
+        let keyword = projectSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        var results = manager.projects
+        
+        if !keyword.isEmpty {
+            results = results.filter { project in
+                // Match project name
+                if project.name.lowercased().contains(keyword) { return true }
+                
+                // Match group name inside this project
+                let hasGroupMatch = manager.taskGroups.contains { group in
+                    group.projectRef == project.id && group.name.lowercased().contains(keyword)
+                }
+                if hasGroupMatch { return true }
+                
+                // Match session name inside this project
+                let hasSessionMatch = manager.sessions.contains { session in
+                    session.projectRef == project.id && session.title.lowercased().contains(keyword)
+                }
+                if hasSessionMatch { return true }
+                
+                return false
+            }
+        }
+        
+        switch projectSortOption {
+        case .newest:
+            results.sort { $0.createdAt > $1.createdAt }
+        case .oldest:
+            results.sort { $0.createdAt < $1.createdAt }
+        case .nameAZ:
+            results.sort { $0.name.lowercased() < $1.name.lowercased() }
+        case .nameZA:
+            results.sort { $0.name.lowercased() > $1.name.lowercased() }
+        case .mostTimeSpent:
+            results.sort { proj1, proj2 in
+                let time1 = manager.sessions.filter { $0.projectRef == proj1.id && $0.status == .completed }.reduce(0) { $0 + $1.duration }
+                let time2 = manager.sessions.filter { $0.projectRef == proj2.id && $0.status == .completed }.reduce(0) { $0 + $1.duration }
+                return time1 > time2
+            }
+        }
+        
+        return results
+    }
     
     private func searchSessions() -> [Session] {
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

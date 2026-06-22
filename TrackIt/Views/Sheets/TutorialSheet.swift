@@ -38,77 +38,29 @@ struct TutorialSheet: View {
         ),
         TutorialSlide(
             id: 3,
-            title: "Step 1",
-            description: "Go to the Workspace to create a project and add groups to schedule your sessions, or simply add new groups and sessions to an existing project.",
-            icon: "square.grid.2x2.fill",
-            imageName: "GoToWorkspace",
+            title: "Organize Your Work",
+            description: "Go to the Workspace to create Projects and organize your tasks into Groups. Use tags to make searching easy.",
+            icon: "folder.fill.badge.plus",
+            imageName: "CreateGrpForm",
             color: .orange
         ),
         TutorialSlide(
             id: 4,
-            title: "Step 2",
-            description: "Create a new project before creating a group or session.",
-            icon: "plus.app.fill",
-            imageName: "CreateProj",
+            title: "Schedule & Start",
+            description: "Schedule sessions inside your groups. When you're ready to begin, simply click the start button.",
+            icon: "calendar.badge.clock",
+            imageName: "StartTimer",
             color: .teal
         ),
         TutorialSlide(
             id: 5,
-            title: "Step 3",
-            description: "Create a project using a good name that justifies your work.",
-            icon: "text.cursor",
-            imageName: "CreateProjForm",
-            color: .indigo
-        ),
-        TutorialSlide(
-            id: 6,
-            title: "Step 4",
-            description: "Now create a group inside the project to organize and group related sessions together.",
-            icon: "folder.fill.badge.plus",
-            imageName: "CreateGrpButton",
-            color: .yellow
-        ),
-        TutorialSlide(
-            id: 7,
-            title: "Step 5",
-            description: "Choose a clear name for your group and assign relevant tags. Tags make it easy to search related sessions and track analytics across different projects.",
-            icon: "tag.fill",
-            imageName: "CreateGrpForm",
-            color: .red
-        ),
-        TutorialSlide(
-            id: 8,
-            title: "Step 6",
-            description: "Schedule your sessions inside the group. Set a duration, pick tags, and define your goals to stay focused.",
-            icon: "calendar.badge.clock",
-            imageName: "plansession",
-            color: .cyan
-        ),
-        TutorialSlide(
-            id: 9,
-            title: "Step 7",
-            description: "Give your session a descriptive name, select its target group, and apply tags to help with search optimization later.",
-            icon: "list.bullet.rectangle.fill",
-            imageName: "PlanSessionForm",
-            color: .mint
-        ),
-        TutorialSlide(
-            id: 10,
-            title: "Step 8",
-            description: "Finally, click the start button to launch your timer whenever you are ready to begin your session.",
-            icon: "play.circle.fill",
-            imageName: "StartTimer",
-            color: .green
-        ),
-        TutorialSlide(
-            id: 11,
             title: "Workflow 2: Dive Right In",
             description: "You don't always need to plan ahead. You can immediately start a timer from the floating widget. Once your session finishes, you can save it as a standalone session, or effortlessly assign it to a new or existing project.",
             icon: "bolt.fill",
             color: .yellow
         ),
         TutorialSlide(
-            id: 12,
+            id: 6,
             title: "Start & Focus",
             description: "Just start the timer, position it anywhere on your screen, and focus on your work until the session ends.",
             icon: "timer",
@@ -116,7 +68,7 @@ struct TutorialSheet: View {
             color: .blue
         ),
         TutorialSlide(
-            id: 13,
+            id: 7,
             title: "Add Notes Quickly",
             description: "Need to write something down? You can add notes directly from the floating timer without opening the workspace, and they'll be saved automatically.",
             icon: "square.and.pencil",
@@ -124,7 +76,7 @@ struct TutorialSheet: View {
             color: .indigo
         ),
         TutorialSlide(
-            id: 14,
+            id: 8,
             title: "Wrap Up & Save",
             description: "When you are done, review your session. You can append any final thoughts to your notes and save it securely.",
             icon: "checkmark.seal",
@@ -132,20 +84,12 @@ struct TutorialSheet: View {
             color: .green
         ),
         TutorialSlide(
-            id: 15,
+            id: 9,
             title: "Review & Edit",
-            description: "After saving the session, you'll be redirected to the workspace where you can see your completed session and edit any details if needed.",
+            description: "After saving, you'll see your completed sessions in the workspace. Tap on any session to view your notes or edit details.",
             icon: "eye",
-            imageName: "seeSession",
+            imageName: "SessonNotes",
             color: .purple
-        ),
-        TutorialSlide(
-            id: 16,
-            title: "View Your Notes",
-            description: "Simply tap on any completed session in the list to instantly view the notes you jotted down while working.",
-            icon: "text.alignleft",
-            imageName: "seeSession",
-            color: .teal
         )
     ]
     
