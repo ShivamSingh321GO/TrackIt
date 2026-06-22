@@ -402,7 +402,7 @@ struct ContentView: View {
                 window.standardWindowButton(.miniaturizeButton)?.isHidden = false
                 window.standardWindowButton(.zoomButton)?.isHidden = false
                 
-                let normalSize = NSSize(width: 240, height: 140)
+                let normalSize = NSSize(width: 210, height: 120)
                 window.minSize = normalSize
                 window.maxSize = normalSize
                 

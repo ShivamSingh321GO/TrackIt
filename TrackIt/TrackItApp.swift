@@ -22,9 +22,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if let panel = self.floatingPanel {
+            panel.orderFrontRegardless()
+        } else {
+            self.createFloatingPanel()
+        }
+        return true
+    }
+    
     private func createFloatingPanel() {
         let panel = FloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 140)
+            contentRect: NSRect(x: 0, y: 0, width: 210, height: 120)
         )
         
         // Host the SwiftUI ContentView inside this panel
@@ -37,8 +46,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let visibleFrame = screen.visibleFrame
             let padding: CGFloat = 20
             let origin = NSPoint(
-                x: visibleFrame.maxX - 240 - padding,
-                y: visibleFrame.maxY - 140 - padding
+                x: visibleFrame.maxX - 210 - padding,
+                y: visibleFrame.maxY - 120 - padding
             )
             panel.setFrameOrigin(origin)
         }
