@@ -46,9 +46,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func createFloatingPanel() {
+        let frameSize = NSSize(width: 210, height: 120)
+        let styleMask: NSWindow.StyleMask = [
+            .titled,
+            .closable,
+            .miniaturizable,
+            .nonactivatingPanel
+        ]
+        let contentRect = NSWindow.contentRect(forFrameRect: NSRect(origin: .zero, size: frameSize), styleMask: styleMask)
+        
         let panel = FloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 210, height: 120)
+            contentRect: contentRect
         )
+        
+        // Lock initial constraints to normal size to prevent any layout stretching on launch
+        panel.minSize = frameSize
+        panel.maxSize = frameSize
         
         // Host the SwiftUI ContentView inside this panel
         let contentView = ContentView()
@@ -60,8 +73,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let visibleFrame = screen.visibleFrame
             let padding: CGFloat = 20
             let origin = NSPoint(
-                x: visibleFrame.maxX - 210 - padding,
-                y: visibleFrame.maxY - 120 - padding
+                x: visibleFrame.maxX - frameSize.width - padding,
+                y: visibleFrame.maxY - frameSize.height - padding
             )
             panel.setFrameOrigin(origin)
         }
