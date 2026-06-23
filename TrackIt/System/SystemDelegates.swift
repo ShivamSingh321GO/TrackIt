@@ -42,9 +42,8 @@ class StatusItemTarget: NSObject {
     }
     
     @objc func openTutorial() {
-        guard let manager = manager else { return }
         DispatchQueue.main.async {
-            TutorialWindowManager.shared.showTutorial(manager: manager)
+            TutorialWindowManager.shared.showTutorial()
         }
     }
     
@@ -175,18 +174,15 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
 class TutorialWindowManager: NSObject, NSWindowDelegate {
     static let shared = TutorialWindowManager()
     private var window: NSWindow?
-    weak var onDismissManager: SessionFlowManager?
     
-    func showTutorial(manager: SessionFlowManager) {
+    func showTutorial() {
         if let window = window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         
-        onDismissManager = manager
-        
-        let tutorialView = TutorialSheet(manager: manager)
+        let tutorialView = TutorialSheet()
         let hostingView = NSHostingView(rootView: tutorialView)
         
         let newWindow = NSWindow(
@@ -214,14 +210,14 @@ class TutorialWindowManager: NSObject, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.window?.close()
             self?.window = nil
-            self?.onDismissManager?.showTutorialSheet = false
+            UserDefaults.standard.set(true, forKey: "SF_HasSeenTutorial")
+            NotificationCenter.default.post(name: Notification.Name("TutorialDidFinish"), object: nil)
         }
     }
     
     func windowWillClose(_ notification: Notification) {
         self.window = nil
-        DispatchQueue.main.async { [weak self] in
-            self?.onDismissManager?.showTutorialSheet = false
-        }
+        UserDefaults.standard.set(true, forKey: "SF_HasSeenTutorial")
+        NotificationCenter.default.post(name: Notification.Name("TutorialDidFinish"), object: nil)
     }
 }

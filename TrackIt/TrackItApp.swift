@@ -18,7 +18,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.close()
             }
             
-            self.createFloatingPanel()
+            if !UserDefaults.standard.bool(forKey: "SF_HasSeenTutorial") {
+                TutorialWindowManager.shared.showTutorial()
+                NotificationCenter.default.addObserver(forName: Notification.Name("TutorialDidFinish"), object: nil, queue: .main) { _ in
+                    if self.floatingPanel == nil {
+                        self.createFloatingPanel()
+                    }
+                }
+            } else {
+                self.createFloatingPanel()
+            }
         }
     }
     
@@ -26,7 +35,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let panel = self.floatingPanel {
             panel.orderFrontRegardless()
         } else {
-            self.createFloatingPanel()
+            if !UserDefaults.standard.bool(forKey: "SF_HasSeenTutorial") {
+                TutorialWindowManager.shared.showTutorial()
+            } else {
+                self.createFloatingPanel()
+            }
         }
         return true
     }
