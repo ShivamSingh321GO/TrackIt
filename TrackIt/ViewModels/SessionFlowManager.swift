@@ -288,6 +288,9 @@ class SessionFlowManager {
             
             let tutorialItem = NSMenuItem(title: "Tutorial", action: #selector(StatusItemTarget.openTutorial), keyEquivalent: "?")
             tutorialItem.target = StatusItemTarget.shared
+            if let icon = NSImage(systemSymbolName: "book", accessibilityDescription: nil) {
+                tutorialItem.image = icon
+            }
             menu.addItem(tutorialItem)
             
             menu.addItem(NSMenuItem.separator())

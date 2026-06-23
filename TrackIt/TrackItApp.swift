@@ -18,11 +18,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.close()
             }
             
-            self.createFloatingPanel()
+            if !UserDefaults.standard.bool(forKey: "SF_HasSeenTutorial") {
+                TutorialWindowManager.shared.showTutorial()
+                NotificationCenter.default.addObserver(forName: Notification.Name("TutorialDidFinish"), object: nil, queue: .main) { _ in
+                    if self.floatingPanel == nil {
+                        self.createFloatingPanel()
+                    }
+                }
+            } else {
+                self.createFloatingPanel()
+            }
         }
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !UserDefaults.standard.bool(forKey: "SF_HasSeenTutorial") {
+            TutorialWindowManager.shared.showTutorial()
+            return true
+        }
+        
         if let panel = self.floatingPanel {
             panel.orderFrontRegardless()
         } else {
