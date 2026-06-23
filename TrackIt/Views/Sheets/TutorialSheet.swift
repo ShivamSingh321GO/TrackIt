@@ -10,7 +10,6 @@ struct TutorialSlide: Identifiable {
 }
 
 struct TutorialSheet: View {
-    @Bindable var manager: SessionFlowManager
     @Environment(\.dismiss) var dismiss
     @State private var currentSlideIndex = 0
     
@@ -171,8 +170,12 @@ struct TutorialSheet: View {
                     .foregroundColor(.secondary)
                     .font(.body)
                 } else {
-                    // Placeholder for spacing when Back is hidden
-                    Color.clear.frame(width: 32, height: 20)
+                    Button("Skip") {
+                        TutorialWindowManager.shared.closeTutorial()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    .font(.body)
                 }
                 
                 if currentSlideIndex < slides.count - 1 {
@@ -195,7 +198,7 @@ struct TutorialSheet: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
-        .frame(width: 700, height: 500)
+        .frame(width: 1000, height: 700)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
