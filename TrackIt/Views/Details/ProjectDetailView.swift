@@ -1287,7 +1287,7 @@ struct ProjectPlanSessionSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(title.isEmpty)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || manager.parseDuration(durationText) == nil)
             }
         }
         .padding(20)

@@ -94,10 +94,28 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
         )
         newWindow.title = "Settings"
         newWindow.contentView = hostingView
-        newWindow.center()
+        
+        // Position on the same screen/Space as the active FloatingPanel timer
+        if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }),
+           let screen = timerWindow.screen {
+            let screenFrame = screen.visibleFrame
+            let windowSize = newWindow.frame.size
+            let origin = NSPoint(
+                x: screenFrame.midX - windowSize.width / 2,
+                y: screenFrame.midY - windowSize.height / 2
+            )
+            newWindow.setFrameOrigin(origin)
+        } else {
+            newWindow.center()
+        }
+        
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
+        newWindow.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary
+        ]
         
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)
@@ -124,7 +142,11 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
     func showSaveSheet(manager: SessionFlowManager, duration: TimeInterval) {
         // Close existing window if any
         if let window = window {
-            window.close()
+            if let parent = window.sheetParent {
+                parent.endSheet(window)
+            } else {
+                window.close()
+            }
             self.window = nil
         }
         
@@ -142,22 +164,53 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         )
         newWindow.title = "Complete Session"
         newWindow.contentView = hostingView
-        newWindow.center()
+        
+        // Position on the same screen/Space as the active FloatingPanel timer
+        if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }),
+           let screen = timerWindow.screen {
+            let screenFrame = screen.visibleFrame
+            let windowSize = newWindow.frame.size
+            let origin = NSPoint(
+                x: screenFrame.midX - windowSize.width / 2,
+                y: screenFrame.midY - windowSize.height / 2
+            )
+            newWindow.setFrameOrigin(origin)
+        } else {
+            newWindow.center()
+        }
+        
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
+        newWindow.isMovableByWindowBackground = true
         newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
+        newWindow.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary
+        ]
         
         self.window = newWindow
-        newWindow.makeKeyAndOrderFront(nil)
+        
+        // Present as sheet on the active FloatingPanel window if available
+        if let parent = NSApp.windows.first(where: { $0 is FloatingPanel }) {
+            parent.beginSheet(newWindow)
+        } else {
+            newWindow.makeKeyAndOrderFront(nil)
+        }
+        
         NSApp.activate(ignoringOtherApps: true)
     }
     
     func closeSaveSheet() {
         DispatchQueue.main.async { [weak self] in
-            self?.window?.close()
+            if let window = self?.window {
+                if let parent = window.sheetParent {
+                    parent.endSheet(window)
+                }
+                window.close()
+            }
             self?.window = nil
             self?.onDismissManager?.showSaveSheet = false
         }
@@ -193,13 +246,32 @@ class TutorialWindowManager: NSObject, NSWindowDelegate {
         )
         newWindow.title = "Tutorial"
         newWindow.contentView = hostingView
-        newWindow.center()
+        
+        // Position on the same screen/Space as the active FloatingPanel timer
+        if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }),
+           let screen = timerWindow.screen {
+            let screenFrame = screen.visibleFrame
+            let windowSize = newWindow.frame.size
+            let origin = NSPoint(
+                x: screenFrame.midX - windowSize.width / 2,
+                y: screenFrame.midY - windowSize.height / 2
+            )
+            newWindow.setFrameOrigin(origin)
+        } else {
+            newWindow.center()
+        }
+        
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
+        newWindow.isMovableByWindowBackground = true
         newWindow.backgroundColor = NSColor.windowBackgroundColor
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
+        newWindow.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary
+        ]
         
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)

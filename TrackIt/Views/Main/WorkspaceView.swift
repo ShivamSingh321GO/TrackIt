@@ -860,6 +860,7 @@ struct WorkspaceView: View {
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
+                                .disabled(newProjectNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
                         }
                         .padding(10)
@@ -1222,7 +1223,7 @@ struct WorkspaceView: View {
                     newProjectNameInSheet = ""
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(plannedSessionTitle.isEmpty)
+                .disabled(plannedSessionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || manager.parseDuration(plannedSessionDurationText) == nil)
             }
         }
         .padding(20)
@@ -1284,7 +1285,7 @@ struct WorkspaceView: View {
                     }
                 }
                 .buttonStyle(.bordered)
-                .disabled(newProjectName.isEmpty)
+                .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 
                 Button("Create & Plan Session") {
                     if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1304,7 +1305,7 @@ struct WorkspaceView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(newProjectName.isEmpty)
+                .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(20)
