@@ -66,8 +66,9 @@ struct SessionSaveSheet: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(white: 0.98))
+            .padding(.top, manager.appTheme == "Glass" ? 40 : 16)
+            .padding(.bottom, 16)
+            .background(manager.appTheme == "Glass" ? Color.clear : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(white: 0.98)))
             
             Divider()
             
@@ -84,7 +85,7 @@ struct SessionSaveSheet: View {
                         TextField("e.g. Database Design, Fixed auth bug", text: $title)
                             .textFieldStyle(.plain)
                             .padding(10)
-                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                            .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -141,7 +142,7 @@ struct SessionSaveSheet: View {
                                 TextField("New Project Name", text: $newProjectName)
                                     .textFieldStyle(.plain)
                                     .padding(8)
-                                    .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                                    .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                     .cornerRadius(6)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
@@ -230,7 +231,7 @@ struct SessionSaveSheet: View {
                                         TextField(isEditingExistingGroup ? "Edit Group Name" : "New Group Name (e.g. Frontend, Backend)", text: $newGroupName)
                                             .textFieldStyle(.plain)
                                             .padding(8)
-                                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                                            .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                             .cornerRadius(6)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 6)
@@ -266,7 +267,7 @@ struct SessionSaveSheet: View {
                                                     TextField("Tag name (e.g. core, experimental)", text: $newGroupTagName)
                                                         .textFieldStyle(.plain)
                                                         .padding(6)
-                                                        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                                                        .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                                         .cornerRadius(4)
                                                         .overlay(
                                                             RoundedRectangle(cornerRadius: 4)
@@ -467,7 +468,7 @@ struct SessionSaveSheet: View {
                                 TextField("Tag name (e.g. database, UI, bug fix)", text: $newTagName)
                                     .textFieldStyle(.plain)
                                     .padding(8)
-                                    .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                                    .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                                     .cornerRadius(6)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
@@ -541,9 +542,10 @@ struct SessionSaveSheet: View {
                         
                         TextEditor(text: $notes)
                             .font(.system(.body))
+                            .scrollContentBackground(.hidden)
                             .padding(8)
                             .frame(minHeight: 100, maxHeight: 150)
-                            .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
+                            .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -603,8 +605,49 @@ struct SessionSaveSheet: View {
         }
         .padding(24)
         }
-        .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
+        .frame(width: 540)
+        .frame(maxHeight: .infinity)
+        .background {
+            if manager.appTheme == "Glass" {
+                ZStack {
+                    VisualEffectView(
+                        material: isDark ? .hudWindow : .sidebar,
+                        blendingMode: .behindWindow
+                    )
+                    
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(isDark ? 0.03 : 0.08),
+                                    Color.clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(isDark ? 0.15 : 0.4),
+                                    Color.white.opacity(isDark ? 0.05 : 0.1),
+                                    Color.black.opacity(isDark ? 0.15 : 0.05),
+                                    Color.white.opacity(isDark ? 0.1 : 0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.2
+                        )
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white
+            }
+        }
+        .ignoresSafeArea()
         .preferredColorScheme(manager.appTheme == "Dark" ? .dark : (manager.appTheme == "Light" ? .light : nil))
         .onAppear {
             if let activeId = manager.activeSessionId,

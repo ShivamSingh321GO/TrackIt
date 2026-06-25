@@ -48,9 +48,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func createFloatingPanel() {
         let frameSize = NSSize(width: 210, height: 120)
         let styleMask: NSWindow.StyleMask = [
-            .titled,
-            .closable,
-            .miniaturizable,
+            .borderless,
+            .resizable,
             .nonactivatingPanel
         ]
         let contentRect = NSWindow.contentRect(forFrameRect: NSRect(origin: .zero, size: frameSize), styleMask: styleMask)

@@ -86,9 +86,17 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
         let settingsView = SettingsSheet(manager: manager)
         let hostingView = NSHostingView(rootView: settingsView)
         
+        let styleMask: NSWindow.StyleMask = manager.appTheme == "Glass" ? [.titled, .closable, .miniaturizable, .fullSizeContentView] : [.titled, .closable, .miniaturizable]
+        
+        let standardFrame = NSWindow.frameRect(
+            forContentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
+            styleMask: [.titled, .closable, .miniaturizable]
+        )
+        let contentHeight: CGFloat = manager.appTheme == "Glass" ? standardFrame.height : 260
+        
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: contentHeight),
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -117,9 +125,80 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
             .fullScreenAuxiliary
         ]
         
+        newWindow.isMovableByWindowBackground = true
+        
+        // 1. Set appearance
+        if manager.appTheme == "Dark" {
+            newWindow.appearance = NSAppearance(named: .darkAqua)
+        } else if manager.appTheme == "Light" {
+            newWindow.appearance = NSAppearance(named: .aqua)
+        } else {
+            newWindow.appearance = nil
+        }
+        
+        // 2. Set title bar transparency and visibility
+        if manager.appTheme == "Glass" {
+            newWindow.titlebarAppearsTransparent = true
+            newWindow.titleVisibility = .hidden
+        } else {
+            newWindow.titlebarAppearsTransparent = false
+            newWindow.titleVisibility = .hidden
+        }
+        
+        // 3. Set transparency properties AFTER appearance and style mask
+        newWindow.backgroundColor = .clear
+        newWindow.isOpaque = false
+        newWindow.invalidateShadow()
+        
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func updateTheme(_ theme: String) {
+        guard let window = window else { return }
+        
+        let standardFrame = NSWindow.frameRect(
+            forContentRect: NSRect(x: 0, y: 0, width: 480, height: 260),
+            styleMask: [.titled, .closable, .miniaturizable]
+        )
+        
+        // 1. Update style mask first
+        let newMask: NSWindow.StyleMask = theme == "Glass" ? [.titled, .closable, .miniaturizable, .fullSizeContentView] : [.titled, .closable, .miniaturizable]
+        if window.styleMask != newMask {
+            window.styleMask = newMask
+        }
+        
+        // 2. Set appearance
+        if theme == "Dark" {
+            window.appearance = NSAppearance(named: .darkAqua)
+        } else if theme == "Light" {
+            window.appearance = NSAppearance(named: .aqua)
+        } else {
+            window.appearance = nil
+        }
+        
+        // 3. Configure title bar
+        if theme == "Glass" {
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+        } else {
+            window.titlebarAppearsTransparent = false
+            window.titleVisibility = .hidden
+        }
+        
+        // 4. Force transparency and clear background AFTER style mask and appearance are updated
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.invalidateShadow()
+        
+        // 5. Adjust height and layout
+        let targetHeight = theme == "Glass" ? standardFrame.height : 260
+        window.setContentSize(NSSize(width: 480, height: targetHeight))
+        
+        window.contentView?.needsLayout = true
+        window.contentView?.needsDisplay = true
+        window.contentView?.layoutSubtreeIfNeeded()
     }
     
     func closeSettings() {
@@ -156,9 +235,17 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         let hostingView = NSHostingView(rootView: saveView)
 
         
+        let styleMask: NSWindow.StyleMask = manager.appTheme == "Glass" ? [.titled, .closable, .fullSizeContentView] : [.titled, .closable]
+        
+        let standardFrame = NSWindow.frameRect(
+            forContentRect: NSRect(x: 0, y: 0, width: 540, height: 600),
+            styleMask: [.titled, .closable]
+        )
+        let contentHeight: CGFloat = manager.appTheme == "Glass" ? standardFrame.height : 600
+        
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 600),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: contentHeight),
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -181,26 +268,88 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
-        newWindow.titleVisibility = .hidden
-        newWindow.titlebarAppearsTransparent = true
-        newWindow.isMovableByWindowBackground = true
-        newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
         newWindow.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary
         ]
         
-        self.window = newWindow
+        newWindow.isMovableByWindowBackground = true
         
-        // Present as sheet on the active FloatingPanel window if available
-        if let parent = NSApp.windows.first(where: { $0 is FloatingPanel }) {
-            parent.beginSheet(newWindow)
+        // 1. Set appearance
+        if manager.appTheme == "Dark" {
+            newWindow.appearance = NSAppearance(named: .darkAqua)
+        } else if manager.appTheme == "Light" {
+            newWindow.appearance = NSAppearance(named: .aqua)
         } else {
-            newWindow.makeKeyAndOrderFront(nil)
+            newWindow.appearance = nil
         }
         
+        // 2. Set title bar transparency and visibility
+        if manager.appTheme == "Glass" {
+            newWindow.titlebarAppearsTransparent = true
+            newWindow.titleVisibility = .hidden
+        } else {
+            newWindow.titlebarAppearsTransparent = false
+            newWindow.titleVisibility = .hidden
+        }
+        
+        // 3. Set transparency properties AFTER appearance and style mask
+        newWindow.backgroundColor = .clear
+        newWindow.isOpaque = false
+        newWindow.invalidateShadow()
+        
+        self.window = newWindow
+        
+        // Present as a standalone window so it is draggable on screen
+        newWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func updateTheme(_ theme: String) {
+        guard let window = window else { return }
+        
+        let standardFrame = NSWindow.frameRect(
+            forContentRect: NSRect(x: 0, y: 0, width: 540, height: 600),
+            styleMask: [.titled, .closable]
+        )
+        
+        // 1. Update style mask first
+        let newMask: NSWindow.StyleMask = theme == "Glass" ? [.titled, .closable, .fullSizeContentView] : [.titled, .closable]
+        if window.styleMask != newMask {
+            window.styleMask = newMask
+        }
+        
+        // 2. Set appearance
+        if theme == "Dark" {
+            window.appearance = NSAppearance(named: .darkAqua)
+        } else if theme == "Light" {
+            window.appearance = NSAppearance(named: .aqua)
+        } else {
+            window.appearance = nil
+        }
+        
+        // 3. Configure title bar
+        if theme == "Glass" {
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+        } else {
+            window.titlebarAppearsTransparent = false
+            window.titleVisibility = .hidden
+        }
+        
+        // 4. Configure transparency properties AFTER style mask and appearance are updated
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.invalidateShadow()
+        
+        // 5. Adjust height and layout
+        let targetHeight = theme == "Glass" ? standardFrame.height : 600
+        window.setContentSize(NSSize(width: 540, height: targetHeight))
+        
+        window.contentView?.needsLayout = true
+        window.contentView?.needsDisplay = true
+        window.contentView?.layoutSubtreeIfNeeded()
     }
     
     func closeSaveSheet() {
@@ -263,10 +412,28 @@ class TutorialWindowManager: NSObject, NSWindowDelegate {
         
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
+        newWindow.isMovableByWindowBackground = true
+        
+        let savedTheme = UserDefaults.standard.string(forKey: "SF_AppTheme") ?? "Glass"
+        
+        // 1. Set appearance first
+        if savedTheme == "Dark" {
+            newWindow.appearance = NSAppearance(named: .darkAqua)
+        } else if savedTheme == "Light" {
+            newWindow.appearance = NSAppearance(named: .aqua)
+        } else {
+            newWindow.appearance = nil
+        }
+        
+        // 2. Set title bar transparency and visibility
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
-        newWindow.isMovableByWindowBackground = true
-        newWindow.backgroundColor = NSColor.windowBackgroundColor
+        
+        // 3. Set transparency properties AFTER appearance and style mask
+        newWindow.backgroundColor = .clear
+        newWindow.isOpaque = false
+        newWindow.invalidateShadow()
+        
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
         newWindow.collectionBehavior = [
             .canJoinAllSpaces,
@@ -276,6 +443,28 @@ class TutorialWindowManager: NSObject, NSWindowDelegate {
         self.window = newWindow
         newWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func updateTheme(_ theme: String) {
+        guard let window = window else { return }
+        
+        // 1. Set appearance first
+        if theme == "Dark" {
+            window.appearance = NSAppearance(named: .darkAqua)
+        } else if theme == "Light" {
+            window.appearance = NSAppearance(named: .aqua)
+        } else {
+            window.appearance = nil
+        }
+        
+        // 2. Configure transparency properties AFTER appearance is updated
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.invalidateShadow()
+        
+        window.contentView?.needsLayout = true
+        window.contentView?.needsDisplay = true
+        window.contentView?.layoutSubtreeIfNeeded()
     }
     
     func closeTutorial() {

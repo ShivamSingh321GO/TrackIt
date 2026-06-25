@@ -101,7 +101,7 @@ struct PlannedSessionRow: View {
             .buttonStyle(.plain)
         }
         .padding(12)
-        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
     }
@@ -300,7 +300,7 @@ struct CompletedSessionRow: View {
                                 .scrollContentBackground(.hidden)
                                 .frame(minHeight: 60, maxHeight: 120)
                                 .padding(6)
-                                .background(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
+                                .background(manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white))
                                 .cornerRadius(6)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
@@ -358,7 +358,7 @@ struct CompletedSessionRow: View {
                 )
             }
         }
-        .background((isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)).opacity(isHovered && (hasNotes || isEditingNotes) ? 1.0 : 0.6))
+        .background((manager.appTheme == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))).opacity(isHovered && (hasNotes || isEditingNotes) ? 1.0 : 0.6))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

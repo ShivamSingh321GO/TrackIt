@@ -19,9 +19,8 @@ class FloatingPanel: NSPanel {
         super.init(
             contentRect: contentRect,
             styleMask: [
-                .titled,             // Needed for traffic-light buttons
-                .closable,
-                .miniaturizable,
+                .borderless,
+                .resizable,
                 .nonactivatingPanel  // KEY: clicking the panel doesn't activate the app / steal focus
             ],
             backing: .buffered,
@@ -66,9 +65,11 @@ class FloatingPanel: NSPanel {
     /// only when the user explicitly clicks into an editable field.
     override var canBecomeKey: Bool { true }
     
-    /// Prevent the panel from ever becoming the "main" window,
-    /// which would steal activation from the user's real working app.
-    override var canBecomeMain: Bool { false }
+    /// Allow the panel to become the main window in workspace mode
+    /// so it can enter native macOS full screen.
+    override var canBecomeMain: Bool {
+        return self.styleMask.contains(.titled)
+    }
     
     /// Swallow double-click on the title bar area so macOS doesn't
     /// try to zoom/maximize the panel.
@@ -79,13 +80,17 @@ class FloatingPanel: NSPanel {
         super.mouseDown(with: event)
     }
     
-    /// Intercept the green zoom button click.
-    /// Instead of the default macOS zoom behavior, post a notification
-    /// so ContentView can transition to the workspace view.
+    /// Override zoom: in workspace mode trigger native full screen,
+    /// in timer mode post notification to transition to workspace.
     override func zoom(_ sender: Any?) {
-        NotificationCenter.default.post(name: FloatingPanel.zoomRequestedNotification, object: self)
+        // If the window is small (timer mode), transition to workspace instead of full screening
+        if self.frame.width <= 250 {
+            NotificationCenter.default.post(name: FloatingPanel.zoomRequestedNotification, object: self)
+        } else {
+            self.toggleFullScreen(sender)
+        }
     }
     
-    /// Notification posted when the user clicks the green zoom button.
+    /// Notification posted when the user clicks the green zoom button in timer mode.
     static let zoomRequestedNotification = Notification.Name("FloatingPanelZoomRequested")
 }

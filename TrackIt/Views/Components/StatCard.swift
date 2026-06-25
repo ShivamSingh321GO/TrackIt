@@ -24,7 +24,7 @@ struct InsightCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .background(UserDefaults.standard.string(forKey: "SF_AppTheme") == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
     }
@@ -57,7 +57,7 @@ struct StatCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .background(UserDefaults.standard.string(forKey: "SF_AppTheme") == "Glass" ? Color.white.opacity(isDark ? 0.05 : 0.4) : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98)))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

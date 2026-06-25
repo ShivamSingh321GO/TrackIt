@@ -83,7 +83,8 @@ struct WorkspaceView: View {
                         .fontWeight(.bold)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 16)
+                .padding(.top, 24)
+                .padding(.bottom, 16)
                 
                 Divider()
                     .padding(.bottom, 8)
@@ -131,7 +132,7 @@ struct WorkspaceView: View {
                 .padding(12)
             }
             .frame(width: 200)
-            .background(isDark ? Color(red: 0.08, green: 0.08, blue: 0.10) : Color(white: 0.98))
+            .background(manager.appTheme == "Glass" ? Color.black.opacity(isDark ? 0.2 : 0.03) : (isDark ? Color(red: 0.08, green: 0.08, blue: 0.10) : Color(white: 0.98)))
             
             Divider()
             
@@ -154,8 +155,9 @@ struct WorkspaceView: View {
 
                 }
             }
+            .padding(.top, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background((isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false))
+            .background((manager.appTheme == "Glass" ? Color.clear : (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)).allowsHitTesting(false))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(

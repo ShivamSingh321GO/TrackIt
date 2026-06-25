@@ -11,6 +11,7 @@ struct TutorialSlide: Identifiable {
 
 struct TutorialSheet: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
     @State private var currentSlideIndex = 0
     
     let slides = [
@@ -199,6 +200,48 @@ struct TutorialSheet: View {
             .padding(.bottom, 24)
         }
         .frame(width: 1000, height: 700)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background {
+            let savedTheme = UserDefaults.standard.string(forKey: "SF_AppTheme") ?? "Glass"
+            if savedTheme == "Glass" {
+                ZStack {
+                    VisualEffectView(
+                        material: colorScheme == .dark ? .hudWindow : .sidebar,
+                        blendingMode: .behindWindow
+                    )
+                    
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(colorScheme == .dark ? 0.03 : 0.08),
+                                    Color.clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(colorScheme == .dark ? 0.15 : 0.4),
+                                    Color.white.opacity(colorScheme == .dark ? 0.05 : 0.1),
+                                    Color.black.opacity(colorScheme == .dark ? 0.15 : 0.05),
+                                    Color.white.opacity(colorScheme == .dark ? 0.1 : 0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.2
+                        )
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                Color(NSColor.windowBackgroundColor)
+            }
+        }
+        .ignoresSafeArea()
+        .preferredColorScheme((UserDefaults.standard.string(forKey: "SF_AppTheme") ?? "Glass") == "Dark" ? .dark : ((UserDefaults.standard.string(forKey: "SF_AppTheme") ?? "Glass") == "Light" ? .light : nil))
     }
 }
