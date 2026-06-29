@@ -58,6 +58,18 @@ class FloatingPanel: NSPanel {
         
         // Float above other app windows even when not focused
         self.hidesOnDeactivate = false
+        
+        // Listen for when the window is restored from the Dock to re-apply floating panel behaviors
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDeminiaturize),
+            name: NSWindow.didDeminiaturizeNotification,
+            object: self
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     // MARK: - Key Event Overrides
@@ -84,6 +96,36 @@ class FloatingPanel: NSPanel {
     /// so ContentView can transition to the workspace view.
     override func zoom(_ sender: Any?) {
         NotificationCenter.default.post(name: FloatingPanel.zoomRequestedNotification, object: self)
+    }
+    
+    override func miniaturize(_ sender: Any?) {
+        // Strip behaviors so macOS runs the native Genie/Scale animation.
+        // We do NOT modify styleMask (keeping .nonactivatingPanel), which avoids
+        // AppKit window recreation and property resetting.
+        self.level = .normal
+        self.collectionBehavior.remove(.stationary)
+        self.collectionBehavior.remove(.ignoresCycle)
+        self.collectionBehavior.remove(.fullScreenAuxiliary)
+        
+        // Delay by 0.1s to allow the Window Server to process the new behavior/level
+        // before we tell it to start the minimize animation.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            super.miniaturize(sender)
+        }
+    }
+    
+    /// Restore the floating panel behaviors after the window has finished animating out of the Dock.
+    @objc private func handleDeminiaturize() {
+        // Delay restoration by 0.5 seconds to let the macOS Genie/Scale restore animation finish playing.
+        // Doing this instantly will abort the system's un-genie animation mid-way.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            
+            self.level = .screenSaver
+            self.collectionBehavior.insert(.stationary)
+            self.collectionBehavior.insert(.ignoresCycle)
+            self.collectionBehavior.insert(.fullScreenAuxiliary)
+        }
     }
     
     /// Notification posted when the user clicks the green zoom button.

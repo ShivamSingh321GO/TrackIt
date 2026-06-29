@@ -38,7 +38,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         if let panel = self.floatingPanel {
-            panel.orderFrontRegardless()
+            if panel.isMiniaturized {
+                panel.deminiaturize(nil)
+                return false // Prevents AppKit from doing a default restore which interrupts the animation
+            } else {
+                panel.orderFrontRegardless()
+            }
         } else {
             self.createFloatingPanel()
         }
