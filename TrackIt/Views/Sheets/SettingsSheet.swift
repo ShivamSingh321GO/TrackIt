@@ -5,7 +5,7 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) var dismiss
     
     let soundOptions = ["Funk", "Hero", "Glass", "Submarine", "Morse", "Sosumi", "Tink", "Ping", "Blow", "Purr"]
-    let themeOptions = ["System", "Light", "Dark"]
+    let themeOptions = ["Dark", "Light"]
     
     var body: some View {
         VStack(spacing: 20) {

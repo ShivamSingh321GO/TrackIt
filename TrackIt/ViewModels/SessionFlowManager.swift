@@ -45,7 +45,7 @@ class SessionFlowManager {
             saveData()
         }
     }
-    var appTheme: String = "System" {
+    var appTheme: String = "Dark" {
         didSet {
             saveData()
         }
@@ -661,7 +661,7 @@ class SessionFlowManager {
     private func loadData() {
         let defaults = UserDefaults.standard
         self.completionSoundName = defaults.string(forKey: "SF_CompletionSoundName") ?? "Hero"
-        self.appTheme = defaults.string(forKey: "SF_AppTheme") ?? "System"
+        self.appTheme = defaults.string(forKey: "SF_AppTheme") ?? "Dark"
         self.keepTimerOnTop = defaults.bool(forKey: "SF_KeepTimerOnTop")
         if defaults.object(forKey: "SF_ShowInMenuBar") != nil {
             self.showInMenuBar = defaults.bool(forKey: "SF_ShowInMenuBar")
