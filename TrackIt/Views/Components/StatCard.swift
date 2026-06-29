@@ -35,6 +35,7 @@ struct StatCard: View {
     let value: String
     let icon: String
     var color: Color = .accentColor
+    var isGlass: Bool = false
     
     @Environment(\.colorScheme) var colorScheme
     var isDark: Bool { return colorScheme == .dark }
@@ -57,7 +58,11 @@ struct StatCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .background(
+            isGlass
+            ? Color.white.opacity(0.06)
+            : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        )
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

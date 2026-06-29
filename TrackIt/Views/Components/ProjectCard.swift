@@ -93,7 +93,11 @@ struct ProjectCard: View {
             .padding(.top, 4)
         }
         .padding(16)
-        .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .background(
+            manager.appTheme == "Glass"
+            ? Color.white.opacity(0.06)
+            : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        )
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)

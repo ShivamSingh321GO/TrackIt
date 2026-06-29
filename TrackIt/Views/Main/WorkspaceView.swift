@@ -131,7 +131,11 @@ struct WorkspaceView: View {
                 .padding(12)
             }
             .frame(width: 200)
-            .background(isDark ? Color(red: 0.08, green: 0.08, blue: 0.10) : Color(white: 0.98))
+            .background(
+                manager.appTheme == "Glass"
+                ? Color.black.opacity(0.15)
+                : (isDark ? Color(red: 0.08, green: 0.08, blue: 0.10) : Color(white: 0.98))
+            )
             
             Divider()
             
@@ -155,7 +159,12 @@ struct WorkspaceView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background((isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false))
+            .background(
+                (manager.appTheme == "Glass"
+                 ? Color.clear
+                 : (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
+                ).allowsHitTesting(false)
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(
@@ -434,10 +443,10 @@ struct WorkspaceView: View {
                         let total = durations.reduce(0, +)
                         
                         HStack(spacing: 14) {
-                            StatCard(title: "Longest", value: formatHoursMins(longest), icon: "arrow.up.circle.fill", color: .orange)
-                            StatCard(title: "Shortest", value: formatHoursMins(shortest), icon: "arrow.down.circle.fill", color: .green)
-                            StatCard(title: "Average", value: formatHoursMins(average), icon: "equal.circle.fill", color: .accentColor)
-                            StatCard(title: "Total Time", value: formatHoursMins(total), icon: "clock.fill", color: .purple)
+                            StatCard(title: "Longest", value: formatHoursMins(longest), icon: "arrow.up.circle.fill", color: .orange, isGlass: manager.appTheme == "Glass")
+                            StatCard(title: "Shortest", value: formatHoursMins(shortest), icon: "arrow.down.circle.fill", color: .green, isGlass: manager.appTheme == "Glass")
+                            StatCard(title: "Average", value: formatHoursMins(average), icon: "equal.circle.fill", color: .accentColor, isGlass: manager.appTheme == "Glass")
+                            StatCard(title: "Total Time", value: formatHoursMins(total), icon: "clock.fill", color: .purple, isGlass: manager.appTheme == "Glass")
                         }
                     }
                     .padding(16)

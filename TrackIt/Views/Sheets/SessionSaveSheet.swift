@@ -67,7 +67,11 @@ struct SessionSaveSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(white: 0.98))
+            .background(
+                manager.appTheme == "Glass"
+                ? Color.black.opacity(0.15)
+                : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(white: 0.98))
+            )
             
             Divider()
             
@@ -604,8 +608,12 @@ struct SessionSaveSheet: View {
         .padding(24)
         }
         .frame(maxWidth: .infinity)
-        .background(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
-        .preferredColorScheme(manager.appTheme == "Dark" ? .dark : (manager.appTheme == "Light" ? .light : nil))
+        .background(
+            manager.appTheme == "Glass"
+            ? AnyView(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+            : AnyView(isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white)
+        )
+        .preferredColorScheme(manager.appTheme == "Light" ? .light : .dark)
         .onAppear {
             if let activeId = manager.activeSessionId,
                let activeSession = manager.sessions.first(where: { $0.id == activeId }) {

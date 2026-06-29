@@ -13,12 +13,10 @@ struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
     
     var isDark: Bool {
-        if manager.appTheme == "Dark" {
-            return true
-        } else if manager.appTheme == "Light" {
+        if manager.appTheme == "Light" {
             return false
         } else {
-            return colorScheme == .dark
+            return true
         }
     }
     
@@ -34,7 +32,16 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            DragBackground(color: isDark ? NSColor(red: 0.06, green: 0.06, blue: 0.08, alpha: 1.0) : NSColor.white)
+            if manager.appTheme == "Glass" {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            } else {
+                DragBackground(color: isDark ? NSColor(red: 0.06, green: 0.06, blue: 0.08, alpha: 1.0) : NSColor.white)
+            }
             
             Group {
                 if manager.currentView == .timer {
@@ -53,7 +60,7 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea()
-        .preferredColorScheme(manager.appTheme == "Dark" ? .dark : (manager.appTheme == "Light" ? .light : nil))
+        .preferredColorScheme(manager.appTheme == "Light" ? .light : .dark)
         .onChange(of: manager.showSaveSheet) { oldValue, newValue in
             if newValue {
                 SaveSheetWindowManager.shared.showSaveSheet(manager: manager, duration: manager.timeElapsed)
@@ -69,7 +76,7 @@ struct ContentView: View {
                     let managerRef = self.manager
                     
                     // Configure FloatingPanel properties
-                    configureTitlebar(for: window)
+                    configureTitlebar(for: window, currentView: managerRef.currentView)
                     
                     // The FloatingPanel already handles: level, collectionBehavior,
                     // isMovableByWindowBackground, hidesOnDeactivate, non-activating style.
@@ -79,14 +86,14 @@ struct ContentView: View {
                         object: window,
                         queue: .main
                     ) { _ in
-                        configureTitlebar(for: window)
+                        configureTitlebar(for: window, currentView: managerRef.currentView)
                     }
                     NotificationCenter.default.addObserver(
                         forName: NSWindow.didResignKeyNotification,
                         object: window,
                         queue: .main
                     ) { _ in
-                        configureTitlebar(for: window)
+                        configureTitlebar(for: window, currentView: managerRef.currentView)
                     }
                     // NOTE: Do NOT observe didResizeNotification here.
                     // configureTitlebar modifies styleMask, which triggers another
@@ -152,180 +159,182 @@ struct ContentView: View {
     private var timerView: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                // Top Bar
-                    HStack(spacing: geometry.size.width < 250 ? 6 : 16) {
-                        // Natural Language Duration Input
-                        TextField(
-                            "Timer Input",
-                            text: $manager.inputTimerText,
-                            prompt: Text(geometry.size.width < 180 ? "" : (geometry.size.width < 280 ? "Enter Timer" : "Enter Timer Here (\"20 min\", \"add 1 hour\", etc.)"))
-                                .foregroundColor(isDark ? Color.white.opacity(0.4) : Color.black.opacity(0.5))
-                        )
-                        .textFieldStyle(.plain)
-                        .font(.system(size: geometry.size.width < 180 ? 10 : 13, weight: .regular))
-                        .foregroundColor(.primary)
-                        .foregroundStyle(.primary)
-                        .onSubmit {
-                            manager.submitTimerInput()
-                        }
-                        
-                        if !manager.inputTimerText.isEmpty && geometry.size.width >= 160 {
-                            Button(action: { manager.inputTimerText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.primary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        
-                        Spacer()
-                        
-                        // Top Bar Actions
-                        HStack(spacing: geometry.size.width < 250 ? 6 : 14) {
-                            // Play/Pause Action
-                            Button(action: {
-                                if manager.isRunning {
-                                    manager.pauseTimer()
-                                } else {
-                                    manager.startTimer()
-                                }
-                            }) {
-                                Image(systemName: manager.isRunning ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(manager.isRunning ? .accentColor : .primary)
-                                    .shadow(color: manager.isRunning ? .accentColor.opacity(0.5) : .clear, radius: 4)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { isPlayHovered = $0 }
-                            .scaleEffect(isPlayHovered ? 1.1 : 1.0)
-                            
-                            // Stop Action
-                            if manager.timeElapsed > 0 || manager.isRunning {
-                                Button(action: {
-                                    manager.stopAndPromptSave()
-                                }) {
-                                    Image(systemName: "stop.fill")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isStopHovered = $0 }
-                                .scaleEffect(isStopHovered ? 1.1 : 1.0)
-                            }
-                            
-                            // Reset Action
-                            Button(action: {
-                                manager.resetTimer()
-                            }) {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.primary)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { isResetHovered = $0 }
-                            .scaleEffect(isResetHovered ? 1.1 : 1.0)
-                            
-                            // Notes Action
-                            Button(action: {
-                                showNotesPopover.toggle()
-                            }) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .primary : .accentColor)
-                                    .shadow(color: manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .clear : .accentColor.opacity(0.5), radius: 4)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { isNotesHovered = $0 }
-                            .scaleEffect(isNotesHovered ? 1.1 : 1.0)
-                            .popover(isPresented: $showNotesPopover, arrowEdge: .bottom) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Active Notes")
-                                            .font(.headline)
-                                        Spacer()
-                                        Button("Done") {
-                                            showNotesPopover = false
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundColor(.accentColor)
-                                    }
-                                    TextEditor(text: $manager.activeNotes)
-                                        .font(.system(size: 12))
-                                        .scrollContentBackground(.hidden)
-                                        .padding(6)
-                                        .background(Color(NSColor.textBackgroundColor))
-                                        .cornerRadius(6)
-                                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
-                                }
-                                .padding()
-                                .frame(width: 230, height: 160)
-                            }
-                            
-                            if geometry.size.width >= 200 {
-                                // Workspace Toggle Button
-                                Button(action: {
-                                    NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
-                                }) {
-                                    Image(systemName: "square.grid.2x2")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isWorkspaceHovered = $0 }
-                                .scaleEffect(isWorkspaceHovered ? 1.1 : 1.0)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, geometry.size.width < 250 ? 10 : 20)
-                    .padding(.vertical, geometry.size.width < 250 ? 6 : 10)
-                    .background((isDark ? Color(red: 0.11, green: 0.11, blue: 0.15) : Color(white: 0.96)).allowsHitTesting(false)) 
+                // Header Bar (aligned vertically with native traffic lights)
+                HStack(spacing: 12) {
+                    // Spacer to clear the close/minimize/zoom buttons in the top-left
+                    Spacer()
+                        .frame(width: 70)
                     
-                    Divider()
+                    Spacer()
+                    
+                    // Header Actions
+                    HStack(spacing: 10) {
+                        // Play/Pause Action
+                        Button(action: {
+                            if manager.isRunning {
+                                manager.pauseTimer()
+                            } else {
+                                manager.startTimer()
+                            }
+                        }) {
+                            Image(systemName: manager.isRunning ? "pause.fill" : "play.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(manager.isRunning ? .accentColor : .primary)
+                                .shadow(color: manager.isRunning ? .accentColor.opacity(0.5) : .clear, radius: 4)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { isPlayHovered = $0 }
+                        .scaleEffect(isPlayHovered ? 1.1 : 1.0)
+                        
+                        // Stop Action
+                        if manager.timeElapsed > 0 || manager.isRunning {
+                            Button(action: {
+                                manager.stopAndPromptSave()
+                            }) {
+                                Image(systemName: "stop.fill")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.primary)
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { isStopHovered = $0 }
+                            .scaleEffect(isStopHovered ? 1.1 : 1.0)
+                        }
+                        
+                        // Reset Action
+                        Button(action: {
+                            manager.resetTimer()
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { isResetHovered = $0 }
+                        .scaleEffect(isResetHovered ? 1.1 : 1.0)
+                        
+                        // Notes Action
+                        Button(action: {
+                            showNotesPopover.toggle()
+                        }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .primary : .accentColor)
+                                .shadow(color: manager.activeNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .clear : .accentColor.opacity(0.5), radius: 4)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { isNotesHovered = $0 }
+                        .scaleEffect(isNotesHovered ? 1.1 : 1.0)
+                        .popover(isPresented: $showNotesPopover, arrowEdge: .bottom) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Active Notes")
+                                        .font(.headline)
+                                    Spacer()
+                                    Button("Done") {
+                                        showNotesPopover = false
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.accentColor)
+                                }
+                                TextEditor(text: $manager.activeNotes)
+                                    .font(.system(size: 12))
+                                    .scrollContentBackground(.hidden)
+                                    .padding(6)
+                                    .background(Color(NSColor.textBackgroundColor))
+                                    .cornerRadius(6)
+                                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
+                            }
+                            .padding()
+                            .frame(width: 230, height: 160)
+                        }
+                        
+                        // Workspace Action
+                        Button(action: {
+                            NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
+                        }) {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { isWorkspaceHovered = $0 }
+                        .scaleEffect(isWorkspaceHovered ? 1.1 : 1.0)
+                    }
+                }
+                .frame(height: 28)
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                
+                // Natural Language Duration Input (Enter Timer)
+                HStack(spacing: 8) {
+                    TextField(
+                        "Timer Input",
+                        text: $manager.inputTimerText,
+                        prompt: Text("Enter Timer")
+                            .foregroundColor(isDark ? Color.white.opacity(0.4) : Color.black.opacity(0.5))
+                    )
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.primary)
+                    .onSubmit {
+                        manager.submitTimerInput()
+                    }
+                    
+                    if !manager.inputTimerText.isEmpty {
+                        Button(action: { manager.inputTimerText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.primary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(manager.appTheme == "Glass" ? Color.white.opacity(0.08) : Color.primary.opacity(0.06))
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
                 
                 // Large Digit Timer Center Display
                 ZStack {
-                    (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false)
+                    // Background placeholder (clear if glass so blur shows, otherwise solid color)
+                    if manager.appTheme != "Glass" {
+                        (isDark ? Color(red: 0.06, green: 0.06, blue: 0.08) : Color.white).allowsHitTesting(false)
+                    }
                     
-                    VStack(spacing: 8) {
+                    VStack(spacing: 4) {
                         Text(formatTime(manager.timeRemaining))
-                            .font(.system(size: min(48, geometry.size.width / 5.5), weight: .medium, design: .default))
+                            .font(.system(size: min(44, geometry.size.width / 5.5), weight: .medium, design: .default))
                             .monospacedDigit()
                             .foregroundColor(.primary)
-                            .shadow(color: .accentColor.opacity(0.35), radius: 8, x: 0, y: 0)
+                            .shadow(color: .accentColor.opacity(manager.appTheme == "Glass" ? 0.2 : 0.35), radius: 8, x: 0, y: 0)
                             .contentShape(Rectangle())
-
                         
-                        if geometry.size.height > 120 {
-                            // Simple subtitle indicators
+                        if geometry.size.height > 100 {
                             if manager.timerDuration > 0 {
-                                HStack(spacing: 6) {
+                                HStack(spacing: 4) {
                                     Image(systemName: "hourglass.badge.plus")
                                     Text("Countdown Active")
                                 }
-                                .font(.footnote)
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.06))
-                                .cornerRadius(6)
                             } else if manager.isRunning {
-                                HStack(spacing: 6) {
+                                HStack(spacing: 4) {
                                     Circle()
                                         .fill(Color.green)
-                                        .frame(width: 6, height: 6)
+                                        .frame(width: 5, height: 5)
                                     Text("Stopwatch Tracking")
                                 }
-                                .font(.footnote)
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.06))
-                                .cornerRadius(6)
                             }
                         }
                     }
                     
                     if let feedback = manager.parseFeedback {
-                        let fontSize = max(10, min(15, geometry.size.width / 16))
+                        let fontSize = max(10, min(14, geometry.size.width / 16))
                         let hPadding = max(8, min(16, geometry.size.width / 15))
                         let vPadding = max(4, min(8, geometry.size.width / 30))
                         let cornerRadius = max(6, min(10, geometry.size.width / 24))
@@ -345,6 +354,7 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, 6)
             }
         }
     }
@@ -373,6 +383,9 @@ struct ContentView: View {
             
             // Always keep the panel floating above everything (including fullscreen apps)
             window.level = .screenSaver
+            
+            // Ensure titlebar style matches the current mode FIRST so layout bounds are calculated correctly
+            configureTitlebar(for: window, currentView: manager.currentView)
             
             if manager.currentView == .workspace {
                 // Re-enable resizable style
@@ -403,11 +416,20 @@ struct ContentView: View {
                 window.standardWindowButton(.zoomButton)?.isHidden = false
                 
                 let normalSize = NSSize(width: 210, height: 120)
+                
+                // Allow the window frame to animate resize smoothly without snapping constraints
                 window.minSize = normalSize
-                window.maxSize = normalSize
+                window.maxSize = NSSize(width: 10000, height: 10000)
                 
                 let newFrame = self.getTopRightFrame(for: window, size: normalSize)
                 window.setFrame(newFrame, display: true, animate: true)
+                
+                // Lock window constraints after the transition animation finishes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    guard manager.currentView == .timer else { return }
+                    window.minSize = normalSize
+                    window.maxSize = normalSize
+                }
                 
                 // Draggable by clicking anywhere on background
                 window.isMovableByWindowBackground = true
@@ -416,9 +438,6 @@ struct ContentView: View {
                 window.collectionBehavior.remove(.fullScreenPrimary)
                 window.collectionBehavior.insert(.fullScreenAuxiliary)
             }
-            
-            // Ensure titlebar style matches the current mode
-            configureTitlebar(for: window)
         }
         
         self.resizeWorkItem = workItem
@@ -449,13 +468,17 @@ struct ContentView: View {
     }
 }
 
-private func configureTitlebar(for window: NSWindow) {
-    // Normal/Workspace mode: standard native macOS title bar with traffic lights
+private func configureTitlebar(for window: NSWindow, currentView: AppView) {
     window.titleVisibility = .hidden // Hide title text but keep the bar
-    window.titlebarAppearsTransparent = false
-    // Only mutate styleMask if it actually contains the flag to avoid
-    // triggering an unnecessary constraint/layout pass.
-    if window.styleMask.contains(.fullSizeContentView) {
-        window.styleMask.remove(.fullSizeContentView)
+    if currentView == .timer {
+        window.titlebarAppearsTransparent = true
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
+        }
+    } else {
+        window.titlebarAppearsTransparent = false
+        if window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.remove(.fullSizeContentView)
+        }
     }
 }

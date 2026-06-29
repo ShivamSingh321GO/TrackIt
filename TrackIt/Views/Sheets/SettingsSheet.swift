@@ -5,7 +5,7 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) var dismiss
     
     let soundOptions = ["Funk", "Hero", "Glass", "Submarine", "Morse", "Sosumi", "Tink", "Ping", "Blow", "Purr"]
-    let themeOptions = ["System", "Light", "Dark"]
+    let themeOptions = ["Light", "Dark", "Glass"]
     
     var body: some View {
         VStack(spacing: 20) {
@@ -86,6 +86,8 @@ struct SettingsSheet: View {
         }
         .padding(20)
         .frame(width: 480, height: 260)
+        .background(Color(red: 0.11, green: 0.11, blue: 0.13))
+        .preferredColorScheme(.dark)
         .onChange(of: manager.completionSoundName) { oldValue, newValue in
             NSSound(named: newValue)?.play()
         }

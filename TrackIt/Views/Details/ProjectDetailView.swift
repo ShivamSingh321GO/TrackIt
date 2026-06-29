@@ -14,9 +14,8 @@ struct ProjectDetailView: View {
     
     @Environment(\.colorScheme) var colorScheme
     var isDark: Bool {
-        if manager.appTheme == "Dark" { return true }
         if manager.appTheme == "Light" { return false }
-        return colorScheme == .dark
+        return true
     }
     
     @State private var showPlanSessionSheet: Bool = false
@@ -358,9 +357,8 @@ struct TaskGroupCard: View {
     
     @Environment(\.colorScheme) var colorScheme
     var isDark: Bool {
-        if manager.appTheme == "Dark" { return true }
         if manager.appTheme == "Light" { return false }
-        return colorScheme == .dark
+        return true
     }
     
     @State private var isPlanHovered = false
@@ -498,7 +496,11 @@ struct TaskGroupCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+                .fill(
+                    manager.appTheme == "Glass"
+                    ? Color.white.opacity(0.06)
+                    : (isDark ? Color(red: 0.10, green: 0.10, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -552,9 +554,8 @@ struct SessionRow: View {
     
     @Environment(\.colorScheme) var colorScheme
     var isDark: Bool {
-        if manager.appTheme == "Dark" { return true }
         if manager.appTheme == "Light" { return false }
-        return colorScheme == .dark
+        return true
     }
     
     @State private var isNotesExpanded: Bool = false
@@ -963,7 +964,11 @@ struct SessionRow: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(isHovered && (hasNotes || isEditingNotes) ? 0.7 : 0.45))
+                .fill(
+                    manager.appTheme == "Glass"
+                    ? Color.white.opacity(isHovered && (hasNotes || isEditingNotes) ? 0.12 : 0.06)
+                    : Color(NSColor.controlBackgroundColor).opacity(isHovered && (hasNotes || isEditingNotes) ? 0.7 : 0.45)
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)

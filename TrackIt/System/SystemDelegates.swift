@@ -94,6 +94,7 @@ class SettingsWindowManager: NSObject, NSWindowDelegate {
         )
         newWindow.title = "Settings"
         newWindow.contentView = hostingView
+        newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
         
         // Position on the same screen/Space as the active FloatingPanel timer
         if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }),
@@ -184,7 +185,12 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         newWindow.titleVisibility = .hidden
         newWindow.titlebarAppearsTransparent = true
         newWindow.isMovableByWindowBackground = true
-        newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
+        if manager.appTheme == "Glass" {
+            newWindow.isOpaque = false
+            newWindow.backgroundColor = .clear
+        } else {
+            newWindow.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0)
+        }
         newWindow.level = NSWindow.Level(rawValue: Int(NSWindow.Level.screenSaver.rawValue) + 1)
         newWindow.collectionBehavior = [
             .canJoinAllSpaces,
