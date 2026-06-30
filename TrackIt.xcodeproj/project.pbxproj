@@ -253,7 +253,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 73B8W4ZN6V;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -269,7 +269,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2;
+				MARKETING_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.Sessionly;
 				PRODUCT_NAME = Sessionly;
 				REGISTER_APP_GROUPS = YES;
@@ -290,7 +290,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 73B8W4ZN6V;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -306,7 +306,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2;
+				MARKETING_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.Sessionly;
 				PRODUCT_NAME = Sessionly;
 				REGISTER_APP_GROUPS = YES;
