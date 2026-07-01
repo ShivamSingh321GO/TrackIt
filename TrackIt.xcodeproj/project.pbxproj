@@ -260,7 +260,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Sessionly;
+				INFOPLIST_KEY_CFBundleDisplayName = "Sessionly: Time & Work Tracker";
 				INFOPLIST_KEY_CFBundleName = Sessionly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = NO;
@@ -270,7 +270,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1;
-				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.SessionlyTimer;
+				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.Sessionly;
 				PRODUCT_NAME = Sessionly;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -297,7 +297,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Sessionly;
+				INFOPLIST_KEY_CFBundleDisplayName = "Sessionly: Time & Work Tracker";
 				INFOPLIST_KEY_CFBundleName = Sessionly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = NO;
@@ -307,7 +307,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1;
-				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.SessionlyTimer;
+				PRODUCT_BUNDLE_IDENTIFIER = galgotiasUni.Sessionly;
 				PRODUCT_NAME = Sessionly;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
