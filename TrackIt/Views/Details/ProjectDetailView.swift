@@ -23,7 +23,10 @@ struct ProjectDetailView: View {
     @State private var showAddTaskGroupSheet: Bool = false
     @State private var newTaskGroupName: String = ""
     @State private var planningForTaskGroupId: UUID? = nil
-    @State private var collapsedGroups: Set<UUID> = []
+    
+    @State private var showDuplicateGroupAlert: Bool = false
+    @State private var duplicateGroupAlertName: String = ""
+
     
     // For group tags selection/creation in addTaskGroupSheet
     @State private var selectedGroupTagIds: Set<UUID> = []
@@ -94,12 +97,12 @@ struct ProjectDetailView: View {
                         // Task Groups
                         ForEach(groups) { group in
                             let sessions = sessionsFor(group.id)
-                            let collapsed = collapsedGroups.contains(group.id)
+                            let isExpanded = manager.expandedGroups.contains(group.id)
                             
                             TaskGroupCard(
                                 group: group,
                                 sessions: sessions,
-                                isCollapsed: collapsed,
+                                isCollapsed: !isExpanded,
                                 manager: manager,
                                 onToggle: { toggleGroup(group.id) },
                                 onPlanSession: {
@@ -154,6 +157,11 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showAddTaskGroupSheet) {
             addTaskGroupSheet
         }
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
     }
     
     // MARK: - Helpers
@@ -166,8 +174,8 @@ struct ProjectDetailView: View {
     
     private func toggleGroup(_ id: UUID) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            if collapsedGroups.contains(id) { collapsedGroups.remove(id) }
-            else { collapsedGroups.insert(id) }
+            if manager.expandedGroups.contains(id) { manager.expandedGroups.remove(id) }
+            else { manager.expandedGroups.insert(id) }
         }
     }
     
@@ -328,12 +336,22 @@ struct ProjectDetailView: View {
                 Button("Create Group") {
                     let t = newTaskGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !t.isEmpty {
-                        _ = manager.createTaskGroup(name: t, projectRef: project.id, tagRefs: Array(selectedGroupTagIds))
-                        newTaskGroupName = ""
-                        selectedGroupTagIds = []
-                        showNewGroupTagField = false
-                        newGroupTagName = ""
-                        showAddTaskGroupSheet = false
+                        let isDuplicate = manager.taskGroups.contains(where: { 
+                            $0.projectRef == project.id && 
+                            $0.name.lowercased() == t.lowercased()
+                        })
+                        
+                        if isDuplicate {
+                            duplicateGroupAlertName = t
+                            showDuplicateGroupAlert = true
+                        } else {
+                            _ = manager.createTaskGroup(name: t, projectRef: project.id, tagRefs: Array(selectedGroupTagIds))
+                            newTaskGroupName = ""
+                            selectedGroupTagIds = []
+                            showNewGroupTagField = false
+                            newGroupTagName = ""
+                            showAddTaskGroupSheet = false
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -342,6 +360,11 @@ struct ProjectDetailView: View {
         }
         .padding(20)
         .frame(width: 400)
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
     }
 }
 
@@ -1041,6 +1064,12 @@ struct ProjectPlanSessionSheet: View {
     @State private var newGroupTagNameForNewGroup: String = ""
     @State private var selectedGroupTagColorHexForNewGroup: String = Tag.defaultColors.first ?? "#FF6B6B"
     
+    @State private var showDuplicateGroupAlert: Bool = false
+    @State private var duplicateGroupAlertName: String = ""
+    
+    @State private var showDuplicateSessionAlert: Bool = false
+    @State private var duplicateSessionAlertName: String = ""
+    
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -1091,15 +1120,25 @@ struct ProjectPlanSessionSheet: View {
                                     Button("Add") {
                                         let t = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
                                         if !t.isEmpty {
-                                            let g = manager.createTaskGroup(
-                                                name: t,
-                                                projectRef: project.id,
-                                                tagRefs: Array(selectedGroupTagIdsForNewGroup)
-                                            )
-                                            selectedGroupId = g.id
-                                            newGroupName = ""
-                                            selectedGroupTagIdsForNewGroup = []
-                                            showNewGroup = false
+                                            let isDuplicate = manager.taskGroups.contains(where: { 
+                                                $0.projectRef == project.id && 
+                                                $0.name.lowercased() == t.lowercased()
+                                            })
+                                            
+                                            if isDuplicate {
+                                                duplicateGroupAlertName = t
+                                                showDuplicateGroupAlert = true
+                                            } else {
+                                                let g = manager.createTaskGroup(
+                                                    name: t,
+                                                    projectRef: project.id,
+                                                    tagRefs: Array(selectedGroupTagIdsForNewGroup)
+                                                )
+                                                selectedGroupId = g.id
+                                                newGroupName = ""
+                                                selectedGroupTagIdsForNewGroup = []
+                                                showNewGroup = false
+                                            }
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -1277,14 +1316,27 @@ struct ProjectPlanSessionSheet: View {
                 Spacer()
                 Button("Save Plan") {
                     let dur = manager.parseDuration(durationText)?.duration ?? 1800
-                    manager.planSession(
-                        title: title.isEmpty ? "Planned Work Block" : title,
-                        duration: dur,
-                        projectId: project.id,
-                        taskGroupId: selectedGroupId,
-                        tagIds: Array(selectedTagIds)
-                    )
-                    dismiss()
+                    let trimmedTitle = title.isEmpty ? "Planned Work Block" : title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    let isDuplicate = manager.sessions.contains(where: { 
+                        $0.projectRef == project.id && 
+                        $0.taskGroupRef == selectedGroupId && 
+                        $0.title.lowercased() == trimmedTitle.lowercased()
+                    })
+                    
+                    if isDuplicate {
+                        duplicateSessionAlertName = trimmedTitle
+                        showDuplicateSessionAlert = true
+                    } else {
+                        manager.planSession(
+                            title: trimmedTitle,
+                            duration: dur,
+                            projectId: project.id,
+                            taskGroupId: selectedGroupId,
+                            tagIds: Array(selectedTagIds)
+                        )
+                        dismiss()
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || manager.parseDuration(durationText) == nil)
@@ -1292,6 +1344,16 @@ struct ProjectPlanSessionSheet: View {
         }
         .padding(20)
         .frame(width: 400)
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
+        .alert("Session Already Exists", isPresented: $showDuplicateSessionAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A session named \"\(duplicateSessionAlertName)\" already exists here. Please choose a different name.")
+        }
         .onAppear { selectedGroupId = taskGroupId }
     }
 }

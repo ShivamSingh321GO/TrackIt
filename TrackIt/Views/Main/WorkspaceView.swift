@@ -55,6 +55,15 @@ struct WorkspaceView: View {
     @State private var projectSearchText: String = ""
     @State private var projectSortOption: ProjectSortOption = .newest
     
+    @State private var showDuplicateProjectAlert: Bool = false
+    @State private var duplicateProjectAlertName: String = ""
+    
+    @State private var showDuplicateGroupAlert: Bool = false
+    @State private var duplicateGroupAlertName: String = ""
+    
+    @State private var showDuplicateSessionAlert: Bool = false
+    @State private var duplicateSessionAlertName: String = ""
+    
     enum ProjectSortOption: String, CaseIterable, Identifiable {
         case newest = "Newest"
         case oldest = "Oldest"
@@ -170,6 +179,21 @@ struct WorkspaceView: View {
         .sheet(isPresented: $showAddProjectSheet) {
             addProjectSheet
         }
+        .alert("Project Already Exists", isPresented: $showDuplicateProjectAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A project named \"\(duplicateProjectAlertName)\" already exists. Please choose a different name.")
+            .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
+        .alert("Session Already Exists", isPresented: $showDuplicateSessionAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A session named \"\(duplicateSessionAlertName)\" already exists here. Please choose a different name.")
+        }
+    }
     }
     
     // MARK: - Dashboard Tab (Overview + Planned + History)
@@ -846,16 +870,22 @@ struct WorkspaceView: View {
                                 Spacer()
                                 
                                 Button("Create & Select") {
-                                    if !newProjectNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        let newProj = manager.createProject(name: newProjectNameInSheet, colorHex: newProjectColorInSheet)
-                                        plannedSessionProjectId = newProj.id
-                                        newProjectNameInSheet = ""
-                                        isCreatingNewProjectInSheet = false
-                                        plannedSessionTaskGroupId = nil
-                                        isCreatingNewGroup = false
-                                        plannedSessionGroupTagIds = []
-                                        showNewGroupTagInSheet = false
-                                        newGroupTagNameInSheet = ""
+                                    let trimmed = newProjectNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !trimmed.isEmpty {
+                                        if manager.projects.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) {
+                                            duplicateProjectAlertName = trimmed
+                                            showDuplicateProjectAlert = true
+                                        } else {
+                                            let newProj = manager.createProject(name: trimmed, colorHex: newProjectColorInSheet)
+                                            plannedSessionProjectId = newProj.id
+                                            newProjectNameInSheet = ""
+                                            isCreatingNewProjectInSheet = false
+                                            plannedSessionTaskGroupId = nil
+                                            isCreatingNewGroup = false
+                                            plannedSessionGroupTagIds = []
+                                            showNewGroupTagInSheet = false
+                                            newGroupTagNameInSheet = ""
+                                        }
                                     }
                                 }
                                 .buttonStyle(.borderedProminent)
@@ -1022,28 +1052,39 @@ struct WorkspaceView: View {
                                     Button(isEditingExistingGroupInSheet ? "Save Changes" : "Create & Select") {
                                         let t = newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
                                         if !t.isEmpty, let projId = plannedSessionProjectId {
-                                            if isEditingExistingGroupInSheet, let editingId = editingGroupIdInSheet {
-                                                manager.updateTaskGroup(
-                                                    id: editingId,
-                                                    name: t,
-                                                    tagRefs: Array(plannedSessionGroupTagIds)
-                                                )
-                                                plannedSessionTaskGroupId = editingId
+                                            let isDuplicate = manager.taskGroups.contains(where: { 
+                                                $0.projectRef == projId && 
+                                                $0.name.lowercased() == t.lowercased() &&
+                                                (isEditingExistingGroupInSheet ? $0.id != editingGroupIdInSheet : true)
+                                            })
+                                            
+                                            if isDuplicate {
+                                                duplicateGroupAlertName = t
+                                                showDuplicateGroupAlert = true
                                             } else {
-                                                let newGroup = manager.createTaskGroup(
-                                                    name: t,
-                                                    projectRef: projId,
-                                                    tagRefs: Array(plannedSessionGroupTagIds)
-                                                )
-                                                plannedSessionTaskGroupId = newGroup.id
+                                                if isEditingExistingGroupInSheet, let editingId = editingGroupIdInSheet {
+                                                    manager.updateTaskGroup(
+                                                        id: editingId,
+                                                        name: t,
+                                                        tagRefs: Array(plannedSessionGroupTagIds)
+                                                    )
+                                                    plannedSessionTaskGroupId = editingId
+                                                } else {
+                                                    let newGroup = manager.createTaskGroup(
+                                                        name: t,
+                                                        projectRef: projId,
+                                                        tagRefs: Array(plannedSessionGroupTagIds)
+                                                    )
+                                                    plannedSessionTaskGroupId = newGroup.id
+                                                }
+                                                newGroupNameInSheet = ""
+                                                plannedSessionGroupTagIds = []
+                                                isCreatingNewGroup = false
+                                                showNewGroupTagInSheet = false
+                                                newGroupTagNameInSheet = ""
+                                                isEditingExistingGroupInSheet = false
+                                                editingGroupIdInSheet = nil
                                             }
-                                            newGroupNameInSheet = ""
-                                            plannedSessionGroupTagIds = []
-                                            isCreatingNewGroup = false
-                                            showNewGroupTagInSheet = false
-                                            newGroupTagNameInSheet = ""
-                                            isEditingExistingGroupInSheet = false
-                                            editingGroupIdInSheet = nil
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -1196,31 +1237,57 @@ struct WorkspaceView: View {
                     let parsed = manager.parseDuration(plannedSessionDurationText)
                     let duration = parsed?.duration ?? 1800 // 30m default
                     
-                    var finalGroupId = plannedSessionTaskGroupId
+                    let trimmedTitle = plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var checkGroupId = plannedSessionTaskGroupId
+                    var continueSaving = true
+                    
                     if let projId = plannedSessionProjectId, isCreatingNewGroup, !newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        let group = manager.createTaskGroup(name: newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines), projectRef: projId, tagRefs: Array(plannedSessionGroupTagIds))
-                        finalGroupId = group.id
+                        let t = newGroupNameInSheet.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let isGroupDuplicate = manager.taskGroups.contains(where: { 
+                            $0.projectRef == projId && $0.name.lowercased() == t.lowercased()
+                        })
+                        if isGroupDuplicate {
+                            duplicateGroupAlertName = t
+                            showDuplicateGroupAlert = true
+                            continueSaving = false
+                        } else {
+                            let group = manager.createTaskGroup(name: t, projectRef: projId, tagRefs: Array(plannedSessionGroupTagIds))
+                            checkGroupId = group.id
+                        }
                     }
                     
-                    manager.planSession(
-                        title: plannedSessionTitle.isEmpty ? "Planned Work Block" : plannedSessionTitle,
-                        duration: duration,
-                        projectId: plannedSessionProjectId,
-                        taskGroupId: finalGroupId,
-                        tagIds: Array(plannedSessionTagIds)
-                    )
-                    showAddPlannedSessionSheet = false
-                    plannedSessionTitle = ""
-                    plannedSessionTaskGroupId = nil
-                    isCreatingNewGroup = false
-                    newGroupNameInSheet = ""
-                    plannedSessionGroupTagIds = []
-                    showNewGroupTagInSheet = false
-                    newGroupTagNameInSheet = ""
-                    plannedSessionTagIds = []
-                    showNewTagInSheet = false
-                    isCreatingNewProjectInSheet = false
-                    newProjectNameInSheet = ""
+                    if continueSaving {
+                        let isSessionDuplicate = manager.sessions.contains(where: { 
+                            $0.projectRef == plannedSessionProjectId && 
+                            $0.taskGroupRef == checkGroupId && 
+                            $0.title.lowercased() == trimmedTitle.lowercased()
+                        })
+                        
+                        if isSessionDuplicate {
+                            duplicateSessionAlertName = trimmedTitle
+                            showDuplicateSessionAlert = true
+                        } else {
+                            manager.planSession(
+                                title: trimmedTitle,
+                                duration: duration,
+                                projectId: plannedSessionProjectId,
+                                taskGroupId: checkGroupId,
+                                tagIds: Array(plannedSessionTagIds)
+                            )
+                            showAddPlannedSessionSheet = false
+                            plannedSessionTitle = ""
+                            plannedSessionTaskGroupId = nil
+                            isCreatingNewGroup = false
+                            newGroupNameInSheet = ""
+                            plannedSessionGroupTagIds = []
+                            showNewGroupTagInSheet = false
+                            newGroupTagNameInSheet = ""
+                            plannedSessionTagIds = []
+                            showNewTagInSheet = false
+                            isCreatingNewProjectInSheet = false
+                            newProjectNameInSheet = ""
+                        }
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(plannedSessionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || manager.parseDuration(plannedSessionDurationText) == nil)
@@ -1278,28 +1345,37 @@ struct WorkspaceView: View {
                 Spacer()
                 
                 Button("Create Project") {
-                    if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        _ = manager.createProject(name: newProjectName, colorHex: newProjectColorHex)
-                        newProjectName = ""
-                        showAddProjectSheet = false
+                    let trimmed = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        if manager.projects.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) {
+                            duplicateProjectAlertName = trimmed
+                            showDuplicateProjectAlert = true
+                        } else {
+                            _ = manager.createProject(name: trimmed, colorHex: newProjectColorHex)
+                            newProjectName = ""
+                            showAddProjectSheet = false
+                        }
                     }
                 }
                 .buttonStyle(.bordered)
                 .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 
                 Button("Create & Plan Session") {
-                    if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        let newProj = manager.createProject(name: newProjectName, colorHex: newProjectColorHex)
-                        newProjectName = ""
-                        showAddProjectSheet = false
-                        
-                        // Prefill planning sheet and show it
-                        plannedSessionProjectId = newProj.id
-                        plannedSessionTitle = ""
-                        plannedSessionDurationText = "20 min"
-                        
-                        // Present the planning sheet after dismissing the current sheet
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    let trimmed = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        if manager.projects.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) {
+                            duplicateProjectAlertName = trimmed
+                            showDuplicateProjectAlert = true
+                        } else {
+                            let newProj = manager.createProject(name: trimmed, colorHex: newProjectColorHex)
+                            newProjectName = ""
+                            showAddProjectSheet = false
+                            
+                            // Prefill planning sheet and show it
+                            plannedSessionProjectId = newProj.id
+                            plannedSessionTitle = ""
+                            plannedSessionDurationText = "20 min"
+                            
                             showAddPlannedSessionSheet = true
                         }
                     }

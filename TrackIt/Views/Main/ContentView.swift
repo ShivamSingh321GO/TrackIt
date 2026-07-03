@@ -93,9 +93,8 @@ struct ContentView: View {
                     // resize/constraint pass and causes a re-entrancy crash when
                     // dragging the window.
                     
-                    let transitionHandler: (Notification) -> Void = { _ in
-                        guard let window = self.appWindow else { return }
-                        guard self.manager.currentView != .workspace else { return }
+                    let transitionHandler: (Notification) -> Void = { [weak manager] _ in
+                        guard manager?.currentView != .workspace else { return }
                         // Expand to workspace size safely BEFORE state changes
                         window.styleMask.insert(.resizable)
                         let workspaceSize = NSSize(width: 850, height: 550)
@@ -105,16 +104,18 @@ struct ContentView: View {
                         let currentFrame = window.frame
                         let newWidth = max(currentFrame.width, workspaceSize.width)
                         let newHeight = max(currentFrame.height, workspaceSize.height)
-                        let newFrame = NSRect(
-                            x: currentFrame.origin.x - (newWidth - currentFrame.width),
-                            y: currentFrame.origin.y - (newHeight - currentFrame.height),
-                            width: newWidth,
-                            height: newHeight
-                        )
+                        
+                        let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first
+                        let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+                        
+                        let newX = visibleFrame.midX - (newWidth / 2)
+                        let newY = visibleFrame.midY - (newHeight / 2)
+                        
+                        let newFrame = NSRect(x: newX, y: newY, width: newWidth, height: newHeight)
                         window.setFrame(newFrame, display: true, animate: true)
                         
                         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                            self.manager.currentView = .workspace
+                            manager?.currentView = .workspace
                         }
                     }
                     
@@ -122,9 +123,12 @@ struct ContentView: View {
                     NotificationCenter.default.addObserver(
                         forName: FloatingPanel.zoomRequestedNotification,
                         object: window,
-                        queue: .main,
-                        using: transitionHandler
-                    )
+                        queue: .main
+                    ) { [weak manager] notif in
+                        manager?.activeWorkspaceTab = .dashboard
+                        manager?.activeWorkspaceProjectId = nil
+                        transitionHandler(notif)
+                    }
                     
                     // Listen for app-wide workspace transition requests (e.g. from Save Sheet)
                     NotificationCenter.default.addObserver(
@@ -133,6 +137,14 @@ struct ContentView: View {
                         queue: .main,
                         using: transitionHandler
                     )
+                    
+                    NotificationCenter.default.addObserver(
+                        forName: Notification.Name("UpdateWindowConstraints"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        self.updateWindowConstraints(window: window)
+                    }
                     
                     updateWindowConstraints(window: window)
                 }
@@ -263,6 +275,8 @@ struct ContentView: View {
                             if geometry.size.width >= 200 {
                                 // Workspace Toggle Button
                                 Button(action: {
+                                    manager.activeWorkspaceTab = .dashboard
+                                    manager.activeWorkspaceProjectId = nil
                                     NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
                                 }) {
                                     Image(systemName: "square.grid.2x2")
@@ -371,10 +385,12 @@ struct ContentView: View {
         let workItem = DispatchWorkItem { [weak manager] in
             guard let manager = manager else { return }
             
-            // Always keep the panel floating above everything (including fullscreen apps)
-            window.level = .screenSaver
-            
             if manager.currentView == .workspace {
+                window.level = .normal
+                // Set explicitly for normal workspace behavior
+                window.collectionBehavior = [.fullScreenPrimary, .managed]
+                
+
                 // Re-enable resizable style
                 window.styleMask.insert(.resizable)
                 
@@ -391,9 +407,12 @@ struct ContentView: View {
                 window.isMovableByWindowBackground = true
                 
                 // Enable full screen capability for the green button
-                window.collectionBehavior.remove(.fullScreenAuxiliary)
-                window.collectionBehavior.insert(.fullScreenPrimary)
+                // (Already set above, but keeping comment for clarity)
             } else {
+                window.level = manager.keepTimerOnTop ? .screenSaver : .floating
+                // Set explicitly to ensure it sticks across spaces
+                window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+                
                 // Normal timer mode — keep .resizable so the green zoom button stays active
                 window.styleMask.insert(.resizable)
                 
@@ -413,8 +432,7 @@ struct ContentView: View {
                 window.isMovableByWindowBackground = true
                 
                 // Disable full screen in timer mode, keep it as overlay
-                window.collectionBehavior.remove(.fullScreenPrimary)
-                window.collectionBehavior.insert(.fullScreenAuxiliary)
+                // (Already set above, but keeping comment for clarity)
             }
             
             // Ensure titlebar style matches the current mode

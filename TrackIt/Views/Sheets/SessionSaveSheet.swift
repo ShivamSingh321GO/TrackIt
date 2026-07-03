@@ -50,6 +50,15 @@ struct SessionSaveSheet: View {
     @State private var newTagName: String = ""
     @State private var selectedTagColorHex: String = Tag.defaultColors.first ?? "#FF6B6B"
     
+    @State private var showDuplicateAlert: Bool = false
+    @State private var duplicateAlertName: String = ""
+    
+    @State private var showDuplicateGroupAlert: Bool = false
+    @State private var duplicateGroupAlertName: String = ""
+    
+    @State private var showDuplicateSessionAlert: Bool = false
+    @State private var duplicateSessionAlertName: String = ""
+    
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -176,15 +185,21 @@ struct SessionSaveSheet: View {
                                     Spacer()
                                     
                                     Button("Create & Select") {
-                                        if !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            let newProj = manager.createProject(name: newProjectName, colorHex: selectedColorHex)
-                                            selectedProjectId = newProj.id
-                                            newProjectName = ""
-                                            showNewProjectField = false
-                                            justCreatedNewProject = true
-                                            selectedTaskGroupId = nil
-                                            showNewGroupField = false
-                                            selectedGroupTagIds = []
+                                        let trimmed = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !trimmed.isEmpty {
+                                            if manager.projects.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) {
+                                                duplicateAlertName = trimmed
+                                                showDuplicateAlert = true
+                                            } else {
+                                                let newProj = manager.createProject(name: trimmed, colorHex: selectedColorHex)
+                                                selectedProjectId = newProj.id
+                                                newProjectName = ""
+                                                showNewProjectField = false
+                                                justCreatedNewProject = true
+                                                selectedTaskGroupId = nil
+                                                showNewGroupField = false
+                                                selectedGroupTagIds = []
+                                            }
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -344,28 +359,39 @@ struct SessionSaveSheet: View {
                                             Button(isEditingExistingGroup ? "Save Changes" : "Create & Select") {
                                                 let t = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
                                                 if !t.isEmpty, let projId = selectedProjectId {
-                                                    if isEditingExistingGroup, let editingId = editingGroupId {
-                                                        manager.updateTaskGroup(
-                                                            id: editingId,
-                                                            name: t,
-                                                            tagRefs: Array(selectedGroupTagIds)
-                                                        )
-                                                        selectedTaskGroupId = editingId
+                                                    let isDuplicate = manager.taskGroups.contains(where: { 
+                                                        $0.projectRef == projId && 
+                                                        $0.name.lowercased() == t.lowercased() && 
+                                                        (isEditingExistingGroup ? $0.id != editingGroupId : true) 
+                                                    })
+                                                    
+                                                    if isDuplicate {
+                                                        duplicateGroupAlertName = t
+                                                        showDuplicateGroupAlert = true
                                                     } else {
-                                                        let newGroup = manager.createTaskGroup(
-                                                            name: t,
-                                                            projectRef: projId,
-                                                            tagRefs: Array(selectedGroupTagIds)
-                                                        )
-                                                        selectedTaskGroupId = newGroup.id
+                                                        if isEditingExistingGroup, let editingId = editingGroupId {
+                                                            manager.updateTaskGroup(
+                                                                id: editingId,
+                                                                name: t,
+                                                                tagRefs: Array(selectedGroupTagIds)
+                                                            )
+                                                            selectedTaskGroupId = editingId
+                                                        } else {
+                                                            let newGroup = manager.createTaskGroup(
+                                                                name: t,
+                                                                projectRef: projId,
+                                                                tagRefs: Array(selectedGroupTagIds)
+                                                            )
+                                                            selectedTaskGroupId = newGroup.id
+                                                        }
+                                                        newGroupName = ""
+                                                        selectedGroupTagIds = []
+                                                        showNewGroupField = false
+                                                        showNewGroupTagField = false
+                                                        newGroupTagName = ""
+                                                        isEditingExistingGroup = false
+                                                        editingGroupId = nil
                                                     }
-                                                    newGroupName = ""
-                                                    selectedGroupTagIds = []
-                                                    showNewGroupField = false
-                                                    showNewGroupTagField = false
-                                                    newGroupTagName = ""
-                                                    isEditingExistingGroup = false
-                                                    editingGroupId = nil
                                                 }
                                             }
                                             .buttonStyle(.borderedProminent)
@@ -567,32 +593,49 @@ struct SessionSaveSheet: View {
                 Spacer()
                 
                 Button("Save Session") {
-                    manager.saveSession(
-                        title: title,
-                        notes: notes,
-                        projectId: selectedProjectId,
-                        taskGroupId: selectedTaskGroupId,
-                        tagIds: Array(selectedTagIds),
-                        duration: duration
-                    )
-                    manager.activeNotes = ""
+                    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isDuplicate = manager.sessions.contains(where: { 
+                        $0.projectRef == selectedProjectId && 
+                        $0.taskGroupRef == selectedTaskGroupId && 
+                        $0.title.lowercased() == trimmedTitle.lowercased() &&
+                        $0.id != manager.activeSessionId
+                    })
                     
-                    let navProjectId = selectedProjectId
-                    
-                    SaveSheetWindowManager.shared.closeSaveSheet()
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        // Navigate to the project where the session was saved, or dashboard for standalone
-                        if let projectId = navProjectId {
-                            manager.activeWorkspaceTab = .projects
-                            manager.activeWorkspaceProjectId = projectId
-                        } else {
-                            manager.activeWorkspaceTab = .dashboard
-                            manager.activeWorkspaceProjectId = nil
+                    if isDuplicate {
+                        duplicateSessionAlertName = trimmedTitle
+                        showDuplicateSessionAlert = true
+                    } else {
+                        manager.saveSession(
+                            title: title,
+                            notes: notes,
+                            projectId: selectedProjectId,
+                            taskGroupId: selectedTaskGroupId,
+                            tagIds: Array(selectedTagIds),
+                            duration: duration
+                        )
+                        manager.activeNotes = ""
+                        
+                        let navProjectId = selectedProjectId
+                        
+                        SaveSheetWindowManager.shared.closeSaveSheet()
+                        
+                        if let groupId = selectedTaskGroupId {
+                            manager.expandedGroups.insert(groupId)
                         }
                         
-                        // Request secure transition to workspace view
-                        NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            // Navigate to the project where the session was saved, or dashboard for standalone
+                            if let projectId = navProjectId {
+                                manager.activeWorkspaceTab = .projects
+                                manager.activeWorkspaceProjectId = projectId
+                            } else {
+                                manager.activeWorkspaceTab = .dashboard
+                                manager.activeWorkspaceProjectId = nil
+                            }
+                            
+                            // Request secure transition to workspace view
+                            NotificationCenter.default.post(name: Notification.Name("TransitionToWorkspace"), object: nil)
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -617,6 +660,21 @@ struct SessionSaveSheet: View {
             } else {
                 notes = manager.activeNotes
             }
+        }
+        .alert("Project Already Exists", isPresented: $showDuplicateAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A project named \"\(duplicateAlertName)\" already exists. Please choose a different name.")
+        }
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
+        .alert("Session Already Exists", isPresented: $showDuplicateSessionAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A session named \"\(duplicateSessionAlertName)\" already exists here. Please choose a different name.")
         }
     }
     

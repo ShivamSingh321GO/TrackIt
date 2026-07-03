@@ -33,6 +33,7 @@ class SessionFlowManager {
     var currentView: AppView = .timer
     var activeWorkspaceTab: WorkspaceTab = .dashboard
     var activeWorkspaceProjectId: UUID? = nil
+    var expandedGroups: Set<UUID> = []
     var showSaveSheet: Bool = false
     var timerTypeString: String = "Stopwatch" // "Countdown" or "Stopwatch"
     var activeSessionId: UUID? = nil

@@ -118,13 +118,8 @@ class FloatingPanel: NSPanel {
     @objc private func handleDeminiaturize() {
         // Delay restoration by 0.5 seconds to let the macOS Genie/Scale restore animation finish playing.
         // Doing this instantly will abort the system's un-genie animation mid-way.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self = self else { return }
-            
-            self.level = .screenSaver
-            self.collectionBehavior.insert(.stationary)
-            self.collectionBehavior.insert(.ignoresCycle)
-            self.collectionBehavior.insert(.fullScreenAuxiliary)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NotificationCenter.default.post(name: Notification.Name("UpdateWindowConstraints"), object: nil)
         }
     }
     
