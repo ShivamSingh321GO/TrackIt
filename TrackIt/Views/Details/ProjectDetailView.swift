@@ -157,11 +157,6 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showAddTaskGroupSheet) {
             addTaskGroupSheet
         }
-        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
-        }
     }
     
     // MARK: - Helpers

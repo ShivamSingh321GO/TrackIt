@@ -78,14 +78,16 @@ struct ContentView: View {
                         forName: NSWindow.didBecomeKeyNotification,
                         object: window,
                         queue: .main
-                    ) { _ in
+                    ) { [weak window] _ in
+                        guard let window = window else { return }
                         configureTitlebar(for: window)
                     }
                     NotificationCenter.default.addObserver(
                         forName: NSWindow.didResignKeyNotification,
                         object: window,
                         queue: .main
-                    ) { _ in
+                    ) { [weak window] _ in
+                        guard let window = window else { return }
                         configureTitlebar(for: window)
                     }
                     // NOTE: Do NOT observe didResizeNotification here.
@@ -124,7 +126,8 @@ struct ContentView: View {
                         forName: FloatingPanel.zoomRequestedNotification,
                         object: window,
                         queue: .main
-                    ) { [weak manager] notif in
+                    ) { [weak window, weak manager = self.manager] notif in
+                        guard window != nil else { return }
                         manager?.activeWorkspaceTab = .dashboard
                         manager?.activeWorkspaceProjectId = nil
                         transitionHandler(notif)
@@ -142,7 +145,8 @@ struct ContentView: View {
                         forName: Notification.Name("UpdateWindowConstraints"),
                         object: nil,
                         queue: .main
-                    ) { _ in
+                    ) { [weak window] _ in
+                        guard let window = window else { return }
                         self.updateWindowConstraints(window: window)
                     }
                     
@@ -374,7 +378,8 @@ struct ContentView: View {
         if window.styleMask.contains(.fullScreen) {
             window.toggleFullScreen(nil)
             // Defer the constraint application slightly to allow fullscreen exit animation to finish
-            let retryWorkItem = DispatchWorkItem {
+            let retryWorkItem = DispatchWorkItem { [weak window] in
+                guard let window = window else { return }
                 self.updateWindowConstraints(window: window)
             }
             self.resizeWorkItem = retryWorkItem
@@ -382,8 +387,8 @@ struct ContentView: View {
             return
         }
         
-        let workItem = DispatchWorkItem { [weak manager] in
-            guard let manager = manager else { return }
+        let workItem = DispatchWorkItem { [weak window, weak manager] in
+            guard let window = window, let manager = manager else { return }
             
             if manager.currentView == .workspace {
                 window.level = .normal

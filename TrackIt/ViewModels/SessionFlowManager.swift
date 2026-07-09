@@ -87,7 +87,23 @@ class SessionFlowManager {
             print(url.path)
             
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            print("⚠️ SwiftData setup failed with disk store: \(error). Attempting to reset store or fall back to in-memory store...")
+            let schema = Schema([Project.self, Session.self, TaskGroup.self, Tag.self])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let url = modelConfiguration.url
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("store-shm"))
+            try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("store-wal"))
+            
+            if let retryContainer = try? ModelContainer(for: schema, configurations: [modelConfiguration]) {
+                self.modelContainer = retryContainer
+                self.modelContext = retryContainer.mainContext
+            } else {
+                let inMemoryConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                let fallbackContainer = try! ModelContainer(for: schema, configurations: [inMemoryConfiguration])
+                self.modelContainer = fallbackContainer
+                self.modelContext = fallbackContainer.mainContext
+            }
         }
         
         loadData()
@@ -297,6 +313,7 @@ class SessionFlowManager {
             menu.addItem(NSMenuItem.separator())
             
             let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.shared.terminate(_:)), keyEquivalent: "q")
+            quitItem.target = NSApplication.shared
             menu.addItem(quitItem)
             
             statusItem.menu = menu

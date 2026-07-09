@@ -35,10 +35,21 @@ class StatusItemTarget: NSObject {
     }
     
     @objc func openSettings() {
+        if manager == nil {
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                if appDelegate.floatingPanel == nil {
+                    appDelegate.createFloatingPanel()
+                }
+            }
+        }
         guard let manager = manager else { return }
         DispatchQueue.main.async {
             SettingsWindowManager.shared.showSettings(manager: manager)
         }
+    }
+    
+    @objc func showSettingsWindow(_ sender: Any?) {
+        openSettings()
     }
     
     @objc func openTutorial() {
@@ -71,6 +82,13 @@ class StatusItemTarget: NSObject {
         manager.timerDuration = duration
     }
 }
+
+extension StatusItemTarget: NSMenuItemValidation {
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        return true
+    }
+}
+
 
 class SettingsWindowManager: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowManager()
@@ -141,12 +159,14 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
     
     func showSaveSheet(manager: SessionFlowManager, duration: TimeInterval) {
         // Close existing window if any
-        if let window = window {
-            if let parent = window.sheetParent {
-                parent.endSheet(window)
-            } else {
-                window.close()
+        if let existing = window {
+            if let parent = existing.parent {
+                parent.removeChildWindow(existing)
             }
+            if let parentSheet = existing.sheetParent {
+                parentSheet.endSheet(existing)
+            }
+            existing.close()
             self.window = nil
         }
         
@@ -165,16 +185,25 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         newWindow.title = "Complete Session"
         newWindow.contentView = hostingView
         
-        // Position on the same screen/Space as the active FloatingPanel timer
-        if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }),
-           let screen = timerWindow.screen {
-            let screenFrame = screen.visibleFrame
+        // Position exactly in the center of the active window if expanded, or center of the screen if timer mode
+        if let timerWindow = NSApp.windows.first(where: { $0 is FloatingPanel }) {
             let windowSize = newWindow.frame.size
-            let origin = NSPoint(
-                x: screenFrame.midX - windowSize.width / 2,
-                y: screenFrame.midY - windowSize.height / 2
-            )
-            newWindow.setFrameOrigin(origin)
+            if timerWindow.frame.width >= 300 {
+                let origin = NSPoint(
+                    x: timerWindow.frame.midX - windowSize.width / 2,
+                    y: timerWindow.frame.midY - windowSize.height / 2
+                )
+                newWindow.setFrameOrigin(origin)
+            } else if let screen = timerWindow.screen {
+                let screenFrame = screen.visibleFrame
+                let origin = NSPoint(
+                    x: screenFrame.midX - windowSize.width / 2,
+                    y: screenFrame.midY - windowSize.height / 2
+                )
+                newWindow.setFrameOrigin(origin)
+            } else {
+                newWindow.center()
+            }
         } else {
             newWindow.center()
         }
@@ -193,12 +222,10 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
         
         self.window = newWindow
         
-        // Present as sheet on the active FloatingPanel window if available
         if let parent = NSApp.windows.first(where: { $0 is FloatingPanel }) {
-            parent.beginSheet(newWindow)
-        } else {
-            newWindow.makeKeyAndOrderFront(nil)
+            parent.addChildWindow(newWindow, ordered: .above)
         }
+        newWindow.makeKeyAndOrderFront(nil)
         
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -206,8 +233,11 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
     func closeSaveSheet() {
         DispatchQueue.main.async { [weak self] in
             if let window = self?.window {
-                if let parent = window.sheetParent {
-                    parent.endSheet(window)
+                if let parent = window.parent {
+                    parent.removeChildWindow(window)
+                }
+                if let parentSheet = window.sheetParent {
+                    parentSheet.endSheet(window)
                 }
                 window.close()
             }
@@ -217,6 +247,9 @@ class SaveSheetWindowManager: NSObject, NSWindowDelegate {
     }
     
     func windowWillClose(_ notification: Notification) {
+        if let window = self.window, let parent = window.parent {
+            parent.removeChildWindow(window)
+        }
         self.window = nil
         DispatchQueue.main.async { [weak self] in
             self?.onDismissManager?.showSaveSheet = false

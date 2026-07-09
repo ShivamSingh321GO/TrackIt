@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var floatingPanel: FloatingPanel?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -17,6 +17,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             for window in NSApp.windows where !(window is FloatingPanel) {
                 window.close()
             }
+            
+            self.configureMainMenu()
             
             if !UserDefaults.standard.bool(forKey: "SF_HasSeenTutorial") {
                 TutorialWindowManager.shared.showTutorial()
@@ -50,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     
-    private func createFloatingPanel() {
+    func createFloatingPanel() {
         let frameSize = NSSize(width: 210, height: 120)
         let styleMask: NSWindow.StyleMask = [
             .titled,
@@ -88,6 +90,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         
         self.floatingPanel = panel
+        self.configureMainMenu()
+    }
+    
+    func configureMainMenu() {
+        if let mainMenu = NSApp.mainMenu {
+            for item in mainMenu.items {
+                if let submenu = item.submenu {
+                    submenu.delegate = self
+                    updateAppSettingsMenu(submenu)
+                }
+            }
+        }
+    }
+    
+    func updateAppSettingsMenu(_ menu: NSMenu) {
+        for item in menu.items {
+            if item.keyEquivalent == "," || item.title.contains("Settings") || item.action == Selector(("showSettingsWindow:")) {
+                item.target = StatusItemTarget.shared
+                item.action = #selector(StatusItemTarget.openSettings)
+                item.isEnabled = true
+            }
+            if item.action == #selector(NSApplication.terminate(_:)) || item.title.contains("Quit") {
+                item.isEnabled = true
+            }
+            if item.action == #selector(NSApplication.hide(_:)) || item.action == #selector(NSApplication.hideOtherApplications(_:)) || item.title.contains("Hide") {
+                item.isEnabled = true
+            }
+            if item.action == #selector(NSApplication.orderFrontStandardAboutPanel(_:)) || item.title.contains("About") {
+                item.isEnabled = true
+            }
+        }
+    }
+    
+    @objc func showSettingsWindow(_ sender: Any?) {
+        StatusItemTarget.shared.openSettings()
+    }
+    
+    @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        return true
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        updateAppSettingsMenu(menu)
     }
 }
 
@@ -96,11 +143,19 @@ struct TrackItApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Empty Settings scene — the real UI is hosted by AppDelegate's FloatingPanel.
+        // Empty Settings scene — the real UI is hosted by AppDelegate's FloatingPanel / SettingsWindowManager.
         // We use Settings instead of WindowGroup to prevent SwiftUI from auto-creating
         // a standard NSWindow that would compete with our floating panel.
         Settings {
             EmptyView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    StatusItemTarget.shared.openSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }

@@ -183,7 +183,8 @@ struct WorkspaceView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("A project named \"\(duplicateProjectAlertName)\" already exists. Please choose a different name.")
-            .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+        }
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
@@ -193,7 +194,6 @@ struct WorkspaceView: View {
         } message: {
             Text("A session named \"\(duplicateSessionAlertName)\" already exists here. Please choose a different name.")
         }
-    }
     }
     
     // MARK: - Dashboard Tab (Overview + Planned + History)
@@ -613,7 +613,7 @@ struct WorkspaceView: View {
                     Text("No projects configured.")
                         .foregroundColor(.secondary)
                 } else if filteredProjects().isEmpty {
-                    Text("No projects found matching \"\\(projectSearchText)\".")
+                    Text("No projects found matching \"\(projectSearchText)\".")
                         .foregroundColor(.secondary)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280))], spacing: 16) {
@@ -1295,6 +1295,21 @@ struct WorkspaceView: View {
         }
         .padding(20)
         .frame(width: 550)
+        .alert("Project Already Exists", isPresented: $showDuplicateProjectAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A project named \"\(duplicateProjectAlertName)\" already exists. Please choose a different name.")
+        }
+        .alert("Task Group Already Exists", isPresented: $showDuplicateGroupAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A group named \"\(duplicateGroupAlertName)\" already exists in this project. Please choose a different name.")
+        }
+        .alert("Session Already Exists", isPresented: $showDuplicateSessionAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A session named \"\(duplicateSessionAlertName)\" already exists here. Please choose a different name.")
+        }
     }
     
     // MARK: - Add Project Sheet
@@ -1371,12 +1386,14 @@ struct WorkspaceView: View {
                             newProjectName = ""
                             showAddProjectSheet = false
                             
-                            // Prefill planning sheet and show it
+                            // Prefill planning sheet and show it after dismissal animation
                             plannedSessionProjectId = newProj.id
                             plannedSessionTitle = ""
                             plannedSessionDurationText = "20 min"
                             
-                            showAddPlannedSessionSheet = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                showAddPlannedSessionSheet = true
+                            }
                         }
                     }
                 }
@@ -1386,5 +1403,10 @@ struct WorkspaceView: View {
         }
         .padding(20)
         .frame(width: 380)
+        .alert("Project Already Exists", isPresented: $showDuplicateProjectAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A project named \"\(duplicateProjectAlertName)\" already exists. Please choose a different name.")
+        }
     }
 }
